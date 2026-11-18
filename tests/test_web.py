@@ -1,0 +1,287 @@
+import re
+from datetime import date
+
+import pytest
+from fastapi.testclient import TestClient
+
+from conftest import FRI, HELDOUT, HELDOUT_DAY, MON, REPO, TUE, change, form_fields, heldout_base, page_text, reply
+from tracker import llm, web
+from tracker.apply import edited, review
+from tracker.store import Draft, Store
+from tracker.transcript import load
+
+CHAIN = "t-heldout"
+URL = f"/{CHAIN}/{HELDOUT_DAY.isoformat()}"
+SELF = {"origin": "http://testserver"}
+
+
+@pytest.fixture
+def site(tmp_path, monkeypatch):
+    """A held-out chain in tmp_path: the answer key's Friday list, and a hand-built Monday 20 Oct draft."""
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(web, "DATA", tmp_path)
+    s = Store(CHAIN, root=tmp_path, transcripts=HELDOUT)
+    items = heldout_base()
+    s.seed(FRI, items)
+    t = load(HELDOUT / f"{HELDOUT_DAY.isoformat()}.txt")
+    proposed = review(reply(
+        change(item_id="T11", due_phrase="right after this", quotes=["I'll do it right after this."]),
+        change("create", title="Review the APP-402 fix", owners=["Rohan"], due_phrase="after standup",
+               review_of="T13", quotes=["Rohan, can you review it?", "Sure, I'll do it after standup."]),
+        change(item_id="T16", status="done", quotes=["Rohan, I read your onboarding draft, it's good"]),
+    ), items, t)
+    s.save_draft(Draft(day=HELDOUT_DAY, provider="test", model="test", base_day=FRI, base=items, proposed=proposed))
+    return TestClient(web.app), s
+
+
+def cards(html: str) -> dict[str, int]:
+    """Item id -> card number, from the visible card heads."""
+    return {i: int(n) for n, i in re.findall(r'id="card(\d+)".*?<b>([^<]*)</b>', html, re.S)}
+
+
+def post(client, data, do="save", headers=SELF):
+    return client.post(URL, data={**data, "do": do}, headers=headers)
+
+
+def edit(client, item_id, do="save", **fields):
+    """Load the page, change one card's fields, and post the whole form back like a browser."""
+    html = client.get(URL).text
+    n = cards(html)[item_id]
+    data = form_fields(html, "review")
+    data.update({f"{k}{n}": v for k, v in fields.items()})
+    return post(client, data, do), n
+
+
+def approve(client):
+    return post(client, form_fields(client.get(URL).text, "review"), "approve")
+
+
+def approved_item(s, item_id):
+    return next(i for i in s.approved(HELDOUT_DAY).items if i.id == item_id)
+
+
+def test_blank_owner_means_nobody(site):
+    """§33: a blank owner box means nobody."""
+    client, s = site
+    edit(client, "T11", owners="")
+    approve(client)
+    assert approved_item(s, "T11").owners == []
+
+
+def test_blank_due_clears(site):
+    """§33: a blank due date clears it."""
+    client, s = site
+    _, n = edit(client, "T11", due="")
+    assert s.draft(HELDOUT_DAY).proposed[n].change.clear_due is True
+    approve(client)
+    assert approved_item(s, "T11").due_date is None
+
+
+def test_owner_edit_names(site):
+    """§33: 'Devansh' still maps to Dev; any other name is accepted."""
+    client, s = site
+    _, n = edit(client, "T11", owners="Devansh, Zed")
+    assert s.draft(HELDOUT_DAY).proposed[n].change.owners == ["Dev", "Zed"]
+
+
+def test_due_edit_in_words(site):
+    """§33: a due date typed as words is worked out by the same rules ('Monday' on a Monday is the next one)."""
+    client, s = site
+    _, n = edit(client, "T11", due="Monday")
+    assert s.draft(HELDOUT_DAY).proposed[n].due_date == date(2025, 10, 27)
+
+
+def ticket_words(html):
+    return page_text(html).lower().count("ticket")
+
+
+def test_bad_ticket_refused(site):
+    """§33: a ticket that does not look like PAY-123 is refused with a message."""
+    client, s = site
+    clean, _ = edit(client, "T11", note="checked")
+    r, n = edit(client, "T11", ticket="PAY123")
+    assert s.draft(HELDOUT_DAY).proposed[n].change.ticket is None
+    assert ticket_words(r.text) > ticket_words(clean.text)
+
+
+def test_approve_blocked_after_refused_edit(site):
+    """§34: approving after an edit was refused is blocked until the problem is fixed."""
+    client, s = site
+    edit(client, "T11", do="approve", ticket="PAY123")
+    assert s.approved(HELDOUT_DAY) is None
+
+
+def test_original_kept_on_first_edit(site):
+    """§29: `original` is the code's version, saved on the first edit and kept after later ones."""
+    client, s = site
+    code = s.draft(HELDOUT_DAY).proposed
+    _, n = edit(client, "T11", owners="Zed")
+    first = s.draft(HELDOUT_DAY).proposed[n]
+    assert first.original.model_dump() == code[n].model_dump()
+    edit(client, "T11", due="Wednesday")
+    p = s.draft(HELDOUT_DAY).proposed[n]
+    assert p.original.model_dump() == code[n].model_dump()
+    assert sorted(edited(p)) == ["due_phrase", "owners"]
+
+
+def test_drop_sets_dropped(site):
+    """§28: Drop adds a lead update that sets the status to dropped; the item keeps its history."""
+    client, s = site
+    before = len(next(i for i in s.draft(HELDOUT_DAY).base if i.id == "T5").history)
+    post(client, form_fields(client.get(URL).text, "review"), "drop:T5")
+    lead = [p for p in s.draft(HELDOUT_DAY).proposed if p.by_lead]
+    assert [(p.item_id, p.change.status) for p in lead] == [("T5", "dropped")]
+    approve(client)
+    t5 = approved_item(s, "T5")
+    assert t5.status == "dropped" and len(t5.history) > before
+
+
+def test_untick_rejects_change(site):
+    """§11, §17: unticking a change rejects it; a plain form leaves an unticked box out."""
+    client, s = site
+    html = client.get(URL).text
+    n = cards(html)["T16"]
+    data = form_fields(html, "review")
+    data.pop(f"tick{n}")
+    post(client, data)
+    assert s.draft(HELDOUT_DAY).proposed[n].selected is False
+    approve(client)
+    assert approved_item(s, "T16").status == "open"
+
+
+def add(client, **fields):
+    data = form_fields(client.get(URL).text, "add")
+    data.update(fields)
+    return post(client, data, "add")
+
+
+def test_add_missed_item(site):
+    """§11, §33, §34: the lead can add a missed item, which gets no duplicate flags; a blank title is refused."""
+    client, s = site
+    count = len(s.draft(HELDOUT_DAY).proposed)
+    add(client, new_title="Search latency", new_owners="Priya")
+    lead = s.draft(HELDOUT_DAY).proposed[-1]
+    assert len(s.draft(HELDOUT_DAY).proposed) == count + 1
+    assert (lead.by_lead, lead.change.action, lead.change.title, lead.flags) == (True, "create", "Search latency", [])
+    add(client, new_title="")
+    assert len(s.draft(HELDOUT_DAY).proposed) == count + 1
+
+
+def test_remove_lead_change(site):
+    """§35: 'Remove this change' removes a change the lead added."""
+    client, s = site
+    count = len(s.draft(HELDOUT_DAY).proposed)
+    add(client, new_title="Flaky CI follow-up", new_owners="Dev")
+    new_id = s.draft(HELDOUT_DAY).proposed[-1].item_id
+    html = client.get(URL).text
+    post(client, form_fields(html, "review"), f"remove:{cards(html)[new_id]}")
+    assert len(s.draft(HELDOUT_DAY).proposed) == count
+
+
+def test_stale_page_refused(site):
+    """§34: a post from a page showing a different number of changes saves nothing."""
+    client, s = site
+    before = s.draft(HELDOUT_DAY).model_dump()
+    html = client.get(URL).text
+    n = cards(html)["T11"]
+    data = form_fields(html, "review")
+    data["n"], data[f"title{n}"] = str(int(data["n"]) - 1), "Renamed"
+    post(client, data)
+    assert s.draft(HELDOUT_DAY).model_dump() == before
+
+
+def test_plain_post_saves(site):
+    """§34: without the page's script, the form still works as a plain post."""
+    client, s = site
+    r, n = edit(client, "T11", title="Send the Falcon kickoff doc today")
+    assert r.status_code < 400 and r.headers["content-type"].startswith("text/html")
+    assert s.draft(HELDOUT_DAY).proposed[n].change.title == "Send the Falcon kickoff doc today"
+
+
+def test_cross_site_post_refused(site):
+    """§34: a post whose Origin names another host gets 403 and saves nothing; the same host is accepted."""
+    client, s = site
+    before = s.draft(HELDOUT_DAY).model_dump()
+    html = client.get(URL).text
+    n = cards(html)["T11"]
+    data = {**form_fields(html, "review"), f"title{n}": "Renamed"}
+    assert post(client, data, headers={"origin": "http://evil.example"}).status_code == 403
+    assert s.draft(HELDOUT_DAY).model_dump() == before
+    post(client, data)
+    assert s.draft(HELDOUT_DAY).proposed[n].change.title == "Renamed"
+
+
+@pytest.mark.parametrize("chain", ["nope", "%2E%2E"])
+def test_unknown_chain_404(site, chain):
+    """§31: only chain folders that exist are accepted, so the address cannot leave data/."""
+    client, _ = site
+    assert client.get(f"/{chain}/{HELDOUT_DAY.isoformat()}").status_code == 404
+
+
+def test_earlier_day_locks_page(tmp_path, monkeypatch):
+    """§34, §35: with the day before unapproved, the page says which day to approve and disables controls;
+    Approve still posts and gets the Store's refusal."""
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(web, "DATA", tmp_path)
+    s = Store("w", root=tmp_path, transcripts=REPO / "transcripts")
+    mon_t = load(REPO / "transcripts" / f"{MON.isoformat()}.txt")
+    s.save_draft(Draft(day=MON, provider="test", model="test", base_day=None, base=[], proposed=review(
+        reply(change("create", title="Export feature", owners=["Priya"], quotes=["I'll start on the export feature."])),
+        [], mon_t)))
+    before = {p for p in tmp_path.rglob("*") if p.is_file()}
+    s.approve(MON)
+    approved_files = {p for p in tmp_path.rglob("*") if p.is_file()} - before
+    base_day, items = s.base_for(TUE)
+    tue_t = load(REPO / "transcripts" / f"{TUE.isoformat()}.txt")
+    s.save_draft(Draft(day=TUE, provider="test", model="test", base_day=base_day, base=items, proposed=review(
+        reply(change(item_id=items[0].id, note="still Monday", quotes=["Export's going fine. Still Monday."])),
+        items, tue_t)))
+    for p in approved_files:
+        p.unlink()
+    client = TestClient(web.app)
+    url = f"/w/{TUE.isoformat()}"
+    html = client.get(url).text
+    assert "Approve 2025-10-13 first" in page_text(html)
+    assert "<fieldset disabled" in html
+    r = client.post(url, data={**form_fields(html, "review"), "do": "approve"}, headers=SELF)
+    assert "2025-10-13" in page_text(r.text)
+    assert s.approved(TUE) is None
+
+
+def test_overdue_unowned_on_top(site):
+    """§11: overdue items (due before today, not done) and unowned items are shown at the top."""
+    client, _ = site
+    html = client.get(URL).text
+    top = html.index("Today's changes")
+    assert html.index("Review the Falcon schema draft") < top  # T15, due 17 Oct, open
+    assert html.index("Flaky CI test") < top                   # T4, no owner
+
+
+def test_page_never_calls_model(tmp_path, monkeypatch):
+    """§30: a day with no draft is shown without calling a provider."""
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(web, "DATA", tmp_path)
+    (tmp_path / "n").mkdir()
+
+    def boom(*a, **k):
+        raise AssertionError("model called")
+    monkeypatch.setattr(llm, "call", boom)
+    assert TestClient(web.app).get(f"/n/{MON.isoformat()}").status_code == 200
+
+
+def test_titles_escaped(site):
+    """§32, §35: text is escaped, so an added title with markup shows as text."""
+    client, _ = site
+    add(client, new_title="<img src=x onerror=alert(1)>")
+    html = client.get(URL).text
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+    assert "<img src=x" not in html
+
+
+def test_removed_ticket_named(site):
+    """§33: removing a ticket set on an earlier day cannot happen here; the page names the field."""
+    client, s = site
+    post(client, form_fields(client.get(URL).text, "review"), "change:T13")
+    clean, _ = edit(client, "T13", note="checked")
+    r, _ = edit(client, "T13", ticket="")
+    assert ticket_words(r.text) > ticket_words(clean.text)
