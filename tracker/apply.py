@@ -89,6 +89,8 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
                 p.flags.append(f"Refers to item {c.item_id}, which is not on the list. Cannot apply.")
                 p.selected = p.applicable = False
             else:
+                if c.owners == [] and item.owners:
+                    p.flags.append(f"Removes the owner ({', '.join(item.owners)}), so nobody owns this.")
                 closed, reopening = item.status in CLOSED, c.status not in (None, *CLOSED)
                 if closed and not reopening and (c.due_phrase or c.clear_due):
                     p.flags.append("Changes the due date of a closed item.")
