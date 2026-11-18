@@ -1,0 +1,98 @@
+{
+ "meta": {
+  "model": "openai/gpt-oss-120b",
+  "seconds": 6.6,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T1",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": "Tomorrow, probably.",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Fix is bigger because it's the index, not the query.",
+    "quotes": [
+     "Search, still on it.",
+     "Tomorrow, probably."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T2",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": "today",
+    "clear_due": null,
+    "ticket": "PAY-231",
+    "tentative": null,
+    "review_of": null,
+    "note": "Token refresh issue.",
+    "quotes": [
+     "PAY-231, the auth one.",
+     "fix is going out today"
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Atlas login slowdown",
+    "status": "open",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "Might be related to 231.",
+    "quotes": [
+     "someone pinged me about the Atlas login being slow.",
+     "Might be related to 231, might not."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Review auth bug PR",
+    "status": "open",
+    "owners": [
+     "Priya"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": "T2",
+    "note": null,
+    "quotes": [
+     "I'll look at Dev's PR after this."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Cert deployment",
+    "status": "open",
+    "owners": [],
+    "due_phrase": "tomorrow morning",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "They say the cert will be done tomorrow morning."
+    ]
+   }
+  ]
+ }
+}

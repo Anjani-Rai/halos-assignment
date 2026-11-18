@@ -1,101 +1,129 @@
 {
  "meta": {
   "model": "@cf/openai/gpt-oss-120b",
-  "seconds": 28.0,
+  "seconds": 412.1,
   "attempts": 1
  },
  "reply": {
   "changes": [
    {
     "action": "create",
-    "item_id": null,
+    "item_id": "1",
     "title": "Search latency",
     "status": "in_progress",
     "owners": [
      "Arjun"
     ],
-    "due_phrase": "today",
+    "due_phrase": "today, maybe tomorrow worst case",
+    "clear_due": null,
     "ticket": null,
     "tentative": false,
+    "review_of": null,
     "note": null,
     "quotes": [
-     "Search latency, still on it."
+     "Search latency, still on it. I thought it was the query but I'm not sure anymore, I'll know by tonight. Should have a fix today, maybe tomorrow worst case."
     ]
    },
    {
     "action": "create",
-    "item_id": null,
-    "title": "Auth bug",
+    "item_id": "2",
+    "title": "Auth bug (token refresh)",
     "status": "in_progress",
     "owners": [
      "Dev"
     ],
     "due_phrase": null,
+    "clear_due": null,
     "ticket": null,
     "tentative": false,
-    "note": "auth bug from yesterday, the one from the support ticket",
+    "review_of": null,
+    "note": null,
     "quotes": [
-     "auth bug from yesterday"
+     "Dev: Yeah, I had context. I'll take it. Pretty sure it's the token refresh, same area."
     ]
    },
    {
     "action": "create",
-    "item_id": null,
-    "title": "Flaky test in CI",
+    "item_id": "3",
+    "title": "Hermes staging deploy blocked (cert expired)",
+    "status": "blocked",
+    "owners": [],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "cert expired over the weekend; deploy blocked, waiting on infra",
+    "quotes": [
+     "Sana: So, the Hermes staging deploy is blocked. The cert expired over the weekend, I only found out when the deploy failed this morning. It's with infra, I've pinged them in the channel, no reply yet."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "4",
+    "title": "Flaky CI test (timeout)",
     "status": "open",
     "owners": [],
     "due_phrase": null,
+    "clear_due": null,
     "ticket": null,
     "tentative": false,
-    "note": "flaky test in CI failed twice yesterday, same timeout",
+    "review_of": null,
+    "note": "test failed twice yesterday due to same timeout",
     "quotes": [
-     "flaky test in CI"
+     "Arjun: Should we do something about the flaky test in CI? It failed twice yesterday, and both times it was the same timeout."
     ]
    },
    {
     "action": "create",
-    "item_id": null,
+    "item_id": "5",
     "title": "Export feature",
     "status": "in_progress",
     "owners": [
      "Priya"
     ],
     "due_phrase": "Monday",
+    "clear_due": null,
     "ticket": null,
     "tentative": false,
-    "note": "We said Friday for that, but honestly with the auth thing moving around and me losing this morning to it, Monday is more realistic.",
+    "review_of": null,
+    "note": null,
     "quotes": [
-     "I'll start on the export feature."
+     "Priya: Yeah, so I'm free now. I'll start on the export feature. We said Friday for that, but honestly with the auth thing moving around and me losing this morning to it, Monday is more realistic."
     ]
    },
    {
     "action": "create",
-    "item_id": null,
-    "title": "CSV encoding issue",
+    "item_id": "6",
+    "title": "CSV encoding issue (customer)",
     "status": "done",
     "owners": [
      "Dev"
     ],
     "due_phrase": null,
+    "clear_due": null,
     "ticket": null,
     "tentative": false,
-    "note": "encoding issue, replied last night",
+    "review_of": null,
+    "note": "customer emailed about CSV encoding issue, replied and resolved",
     "quotes": [
-     "the customer who emailed about the CSV thing, the encoding issue, I replied last night, that's done."
+     "Dev: Oh, the customer who emailed about the CSV thing, the encoding issue, I replied last night, that's done."
     ]
    },
    {
     "action": "create",
-    "item_id": null,
-    "title": "Onboarding documentation update",
+    "item_id": "7",
+    "title": "Onboarding doc links outdated",
     "status": "open",
     "owners": [],
     "due_phrase": null,
+    "clear_due": null,
     "ticket": null,
     "tentative": false,
-    "note": "Onboarding doc is out of date, half the links are dead",
+    "review_of": null,
+    "note": "half the links are dead",
     "quotes": [
-     "The onboarding doc is out of date."
+     "Priya: One more from me, sorry. The onboarding doc is out of date. I noticed when support asked for it, half the links are dead."
     ]
    }
   ]

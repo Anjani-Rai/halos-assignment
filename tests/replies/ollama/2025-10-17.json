@@ -1,0 +1,83 @@
+{
+ "meta": {
+  "model": "qwen3:14b",
+  "seconds": 86.9,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T11",
+    "title": "Hermes retry bug (APP-402)",
+    "status": "open",
+    "owners": [
+     "Sana"
+    ],
+    "due_phrase": "Monday",
+    "clear_due": true,
+    "ticket": "APP-402",
+    "tentative": false,
+    "review_of": null,
+    "note": "retries forever on 400, small fix. Moved to Monday due to Sana's absence.",
+    "quotes": [
+     "Sana's out sick, she messaged this morning, so anything of hers rolls to Monday."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T7",
+    "title": "Auth token refresh fix (PAY-231)",
+    "status": "done",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": true,
+    "ticket": "PAY-231",
+    "tentative": false,
+    "review_of": null,
+    "note": "confirmed it's token refresh, fix is going out today. Priya to glance at the PR. deployed last night, Priya looked at it. session cookie issue, different cause this time. Fixed upon monitoring.",
+    "quotes": [
+     "Auth is fixed, for real this time. Monitored overnight, clean, no reports. I'm done with 231 unless it comes back a third time."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T12",
+    "title": "Falcon schema draft",
+    "status": "open",
+    "owners": [
+     "Priya"
+    ],
+    "due_phrase": null,
+    "clear_due": true,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "Dev is reviewing.",
+    "quotes": [
+     "Falcon schema draft is up, I put it in the channel. Dev's reviewing."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T5",
+    "title": "Onboarding doc update",
+    "status": "open",
+    "owners": [
+     "Rohan"
+    ],
+    "due_phrase": null,
+    "clear_due": true,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "onboarding doc is out of date, half the links are dead. Rohan to take over, was going to read it anyway. Rohan has a draft and will send to Priya for review.",
+    "quotes": [
+     "Onboarding doc, I've got a draft, I'll send it to Priya to check, since she flagged it."
+    ]
+   }
+  ]
+ }
+}

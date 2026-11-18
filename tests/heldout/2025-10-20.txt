@@ -1,0 +1,12 @@
+Arjun: Morning. Sana's back, good to have you. Quick one. Me first: the Falcon kickoff doc, I never sent it, sorry. I'll do it right after this.
+Sana: Thanks. The APP-402 fix is up. Rohan, can you review it? It's small.
+Rohan: Sure, I'll do it after standup.
+Priya: Devansh, did you get to the schema draft?
+Dev: Halfway through. I'll finish it today. Also the flaky CI test hit me again on Saturday. I might take a look tomorrow, if Falcon lets me.
+Priya: Export's on track for Wednesday. Rohan, I read your onboarding draft, it's good, I left a couple of comments.
+Rohan: Thanks. I'll fix those and then it's done, probably Wednesday.
+Arjun: On the retro, let's not pin a date yet. I'll set it up once 231 has been quiet for a week.
+Priya: For Falcon, infra wants a schema freeze until Thursday, so we start the migration after that.
+Arjun: Okay. Oh, support says another customer has the CSV encoding problem. Dev?
+Dev: Same issue as last time, different customer. I'll reply today.
+Arjun: Good. That's it.

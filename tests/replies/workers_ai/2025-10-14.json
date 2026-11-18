@@ -1,0 +1,94 @@
+{
+ "meta": {
+  "model": "@cf/openai/gpt-oss-120b",
+  "seconds": 58.1,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T1",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": "Tomorrow, probably",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "fix is a bit bigger than I thought",
+    "quotes": [
+     "Tomorrow, probably."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T2",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": "today",
+    "clear_due": null,
+    "ticket": "PAY-231",
+    "tentative": null,
+    "review_of": null,
+    "note": "fix is going out today",
+    "quotes": [
+     "fix is going out today"
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T3",
+    "title": null,
+    "status": "in_progress",
+    "owners": null,
+    "due_phrase": "tomorrow morning",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "cert will be done tomorrow morning",
+    "quotes": [
+     "cert will be done tomorrow morning"
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T8",
+    "title": "Atlas login slow",
+    "status": "open",
+    "owners": [],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "Atlas login being slow"
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T9",
+    "title": "Review Auth bug PR",
+    "status": "open",
+    "owners": [
+     "Priya"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": "T2",
+    "note": "Priya will look at the PR after this",
+    "quotes": [
+     "I just need Priya to glance at the PR",
+     "I'll look at Dev's PR after this."
+    ]
+   }
+  ]
+ }
+}

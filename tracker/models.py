@@ -16,6 +16,12 @@ class Note(BaseModel):
     text: str
 
 
+class Event(BaseModel):
+    on: date
+    what: str  # plain summary, e.g. "status open -> done"
+    quotes: list[str] = []
+
+
 class Item(BaseModel):
     id: str
     title: str
@@ -25,8 +31,10 @@ class Item(BaseModel):
     due_date: date | None = None
     ticket: str | None = None
     tentative: bool = False
+    review_of: str | None = None  # id of the item this one reviews
     notes: list[Note] = []
     created_on: date
+    history: list[Event] = []
 
 
 class Change(BaseModel):
@@ -41,8 +49,10 @@ class Change(BaseModel):
     status: Status | None
     owners: list[str] | None = Field(description="Everyone who committed to do it. [] if nobody did. null on update if unchanged.")
     due_phrase: str | None = Field(description="The exact words said for when it is due. null if none or unchanged.")
+    clear_due: bool | None = Field(description="true only if someone says the old due date no longer applies or will be decided later.")
     ticket: str | None = Field(description="Ticket id exactly as said, e.g. PAY-104. null if none or unchanged.")
-    tentative: bool | None = Field(description="true if the person only might do it.")
+    tentative: bool | None = Field(description="true if the person only might do it, or was asked and never answered.")
+    review_of: str | None = Field(description="Id of the existing item this one reviews or checks. null otherwise.")
     note: str | None = Field(description="New fact worth keeping: cause, blocker, review state. null if none.")
     quotes: list[str] = Field(description="Exact words from the transcript that support this change, without the 'Name:' prefix.")
 
@@ -51,3 +61,15 @@ class Reply(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     changes: list[Change]
+
+
+class Proposed(BaseModel):
+    """A model change after the code checks: cleaned fields, problems for the lead, and whether it
+    is ticked to apply."""
+
+    change: Change
+    item_id: str | None  # the target, or the new id for a create
+    due_date: date | None = None  # worked out from change.due_phrase
+    flags: list[str] = []
+    selected: bool = True
+    applicable: bool = True  # false when the change cannot apply at all (unknown item id)

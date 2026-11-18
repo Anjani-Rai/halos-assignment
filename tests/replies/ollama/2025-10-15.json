@@ -1,0 +1,110 @@
+{
+ "meta": {
+  "model": "qwen3:14b",
+  "seconds": 102.7,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T1",
+    "title": "Search latency",
+    "status": null,
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "in review, Dev to check today",
+    "quotes": [
+     "Arjun: Morning. Search fix is in review, finally. Dev, can you look at it today? It's not big, two files."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T10",
+    "title": "Review of Search fix PR",
+    "status": "open",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": "T1",
+    "note": "Dev to review Arjun's search PR today",
+    "quotes": [
+     "Arjun: Morning. Search fix is in review, finally. Dev, can you look at it today? It's not big, two files.",
+     "Dev: Yeah, I'll review Arjun's search PR today."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T7",
+    "title": "Auth token refresh fix (PAY-231)",
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "deployed last night, Priya looked at it",
+    "quotes": [
+     "Dev: ...Auth is done, by the way, deployed last night, Priya looked at it."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T8",
+    "title": "Atlas login slowness",
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "fixed while working on Auth token refresh",
+    "quotes": [
+     "Dev: ...Atlas login thing was unrelated, it was just a slow query on the roles table, I fixed it while I was in there."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T3",
+    "title": "Hermes staging deploy blocked",
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "cert is in, deploy went out this morning, all green",
+    "quotes": [
+     "Sana: Cert's in. Hermes staging deploy went out this morning, all green."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T9",
+    "title": "Review of Auth token refresh fix (PAY-231) PR",
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Priya reviewed the PR",
+    "quotes": [
+     "Dev: ...Priya looked at it."
+    ]
+   }
+  ]
+ }
+}

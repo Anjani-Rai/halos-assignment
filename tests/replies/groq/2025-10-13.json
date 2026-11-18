@@ -1,0 +1,116 @@
+{
+ "meta": {
+  "model": "openai/gpt-oss-120b",
+  "seconds": 5.4,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Search latency",
+    "status": "in_progress",
+    "owners": [
+     "Arjun"
+    ],
+    "due_phrase": "by tonight",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "Search latency, still on it. I thought it was the query but I'm not sure anymore, I'll know by tonight."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Auth bug",
+    "status": "in_progress",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "I'll take it."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Flaky test in CI",
+    "status": "open",
+    "owners": [],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "Should we do something about the flaky test in CI?"
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Export feature",
+    "status": "in_progress",
+    "owners": [
+     "Priya"
+    ],
+    "due_phrase": "Monday",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "I'll start on the export feature.",
+     "Monday is more realistic."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "CSV encoding issue",
+    "status": "done",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "that's done."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Onboarding doc",
+    "status": "open",
+    "owners": [],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "The onboarding doc is out of date. I noticed when support asked for it, half the links are dead."
+    ]
+   }
+  ]
+ }
+}

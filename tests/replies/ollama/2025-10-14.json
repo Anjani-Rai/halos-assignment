@@ -1,0 +1,101 @@
+{
+ "meta": {
+  "model": "qwen3:14b",
+  "seconds": 133.7,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T1",
+    "title": "Search latency",
+    "status": "open",
+    "owners": [
+     "Arjun"
+    ],
+    "due_phrase": "tomorrow, probably",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "still on it, fix is a bit bigger than thought, tomorrow",
+    "quotes": [
+     "Quick one today. Search, still on it. Turns out it's the index, not the query, so the fix is a bit bigger than I thought. Tomorrow, probably."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T2",
+    "title": "Auth token refresh fix (PAY-231)",
+    "status": "in_progress",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": "today",
+    "clear_due": null,
+    "ticket": "PAY-231",
+    "tentative": false,
+    "review_of": null,
+    "note": "confirmed it's token refresh, fix is going out today. Priya to glance at the PR.",
+    "quotes": [
+     "PAY-231, the auth one. Confirmed it's token refresh, fix is going out today, I just need Priya to glance at the PR."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T7",
+    "title": "Atlas login slowness",
+    "status": "open",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "someone pinged me about the Atlas login being slow. Might be related to 231, might not. I'll look after.",
+    "quotes": [
+     "someone pinged me about the Atlas login being slow. Might be related to 231, might not. I'll look after."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T3",
+    "title": "Hermes staging deploy blocked",
+    "status": "blocked",
+    "owners": [
+     "Sana"
+    ],
+    "due_phrase": "tomorrow morning",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "cert expired over the weekend, deploy failed this morning, pinged infra, no reply. Infra says cert will be done tomorrow morning.",
+    "quotes": [
+     "Infra got back. They say the cert will be done tomorrow morning."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T8",
+    "title": "Review of Auth token refresh fix (PAY-231) PR",
+    "status": "open",
+    "owners": [
+     "Priya"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": "T2",
+    "note": "will look at Dev's PR after this.",
+    "quotes": [
+     "I'll look at Dev's PR after this."
+    ]
+   }
+  ]
+ }
+}

@@ -24,9 +24,7 @@ PROVIDERS = {
         "CLOUDFLARE_API_TOKEN",
         180,
     ),
-    "gemini": Provider(
-        "https://generativelanguage.googleapis.com/v1beta/openai/", "gemini-3.8-flash", "GEMINI_API_KEY", 120
-    ),
+    "groq": Provider("https://api.groq.com/openai/v1", "openai/gpt-oss-120b", "GROQ_API_KEY", 120),
 }
 
 

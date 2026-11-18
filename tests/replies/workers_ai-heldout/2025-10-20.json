@@ -1,0 +1,146 @@
+{
+ "meta": {
+  "model": "@cf/openai/gpt-oss-120b",
+  "seconds": 50.8,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T11",
+    "title": null,
+    "status": "in_progress",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "the Falcon kickoff doc, I never sent it, sorry. I'll do it right after this."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T17",
+    "title": "Reply to customer about CSV encoding (new customer)",
+    "status": "in_progress",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": "today",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Different customer",
+    "quotes": [
+     "I'll reply today."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T4",
+    "title": null,
+    "status": null,
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": "tomorrow",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": true,
+    "review_of": null,
+    "note": "Dev might take a look tomorrow",
+    "quotes": [
+     "I might take a look tomorrow, if Falcon lets me."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T18",
+    "title": "Review APP-402 fix",
+    "status": "open",
+    "owners": [
+     "Rohan"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": "T13",
+    "note": null,
+    "quotes": [
+     "Rohan, can you review it? It's small.",
+     "Sure, I'll do it after standup."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T7",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": "Wednesday",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Rohan will fix comments, target Wednesday",
+    "quotes": [
+     "I'll fix those and then it's done, probably Wednesday."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T16",
+    "title": null,
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Priya left a couple of comments",
+    "quotes": [
+     "I read your onboarding draft, it's good, I left a couple of comments."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T14",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": true,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "let's not pin a date yet"
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T12",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Start migration after Thursday due to schema freeze",
+    "quotes": [
+     "infra wants a schema freeze until Thursday, so we start the migration after that."
+    ]
+   }
+  ]
+ }
+}

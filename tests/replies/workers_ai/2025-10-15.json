@@ -1,0 +1,130 @@
+{
+ "meta": {
+  "model": "@cf/openai/gpt-oss-120b",
+  "seconds": 53.4,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T1",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "search fix is in review",
+    "quotes": [
+     "Search fix is in review, finally."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T10",
+    "title": "Review Search fix PR",
+    "status": "in_progress",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": "today",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": "T1",
+    "note": "Dev will review search PR today",
+    "quotes": [
+     "Dev, can you look at it today?",
+     "Yeah, I'll review Arjun's search PR today."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T2",
+    "title": null,
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Auth is done, deployed last night",
+    "quotes": [
+     "Auth is done, by the way, deployed last night, Priya looked at it."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T8",
+    "title": null,
+    "status": "done",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "fixed slow query on roles table",
+    "quotes": [
+     "The Atlas login thing was unrelated, it was just a slow query on the roles table, I fixed it while I was in there."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T3",
+    "title": null,
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "cert done, deploy green",
+    "quotes": [
+     "Cert's in. Hermes staging deploy went out this morning, all green."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T9",
+    "title": null,
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Priya looked at it",
+    "quotes": [
+     "Auth is done, by the way, deployed last night, Priya looked at it."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": "T11",
+    "title": "Send Falcon kickoff doc",
+    "status": "open",
+    "owners": [
+     "Arjun"
+    ],
+    "due_phrase": "tonight",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "I'll send something tonight."
+    ]
+   }
+  ]
+ }
+}

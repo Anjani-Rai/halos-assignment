@@ -1,0 +1,18 @@
+[
+ {"id": "T1", "title": "Search latency fix", "owners": ["Arjun"], "status": "done", "due_phrase": "Tomorrow, probably", "due_date": "2025-10-15", "created_on": "2025-10-13"},
+ {"id": "T2", "title": "Auth bug (token refresh, then session cookie)", "owners": ["Dev"], "status": "done", "due_phrase": "today", "due_date": "2025-10-14", "ticket": "PAY-231", "created_on": "2025-10-13"},
+ {"id": "T3", "title": "Hermes staging deploy", "owners": ["Sana"], "status": "done", "created_on": "2025-10-13"},
+ {"id": "T4", "title": "Flaky CI test, same timeout twice", "owners": [], "status": "open", "created_on": "2025-10-13"},
+ {"id": "T5", "title": "Export feature (Atlas export)", "owners": ["Priya"], "status": "in_progress", "due_phrase": "Wednesday", "due_date": "2025-10-22", "created_on": "2025-10-13"},
+ {"id": "T6", "title": "Reply to customer about CSV encoding", "owners": ["Dev"], "status": "done", "created_on": "2025-10-13"},
+ {"id": "T7", "title": "Fix the out-of-date onboarding doc", "owners": ["Rohan"], "status": "in_progress", "notes": [{"on": "2025-10-17", "text": "Draft written, going to Priya"}], "created_on": "2025-10-13"},
+ {"id": "T8", "title": "Review Dev's PAY-231 PR", "owners": ["Priya"], "status": "done", "review_of": "T2", "created_on": "2025-10-14"},
+ {"id": "T9", "title": "Atlas login is slow", "owners": ["Dev"], "status": "done", "notes": [{"on": "2025-10-15", "text": "Slow query on the roles table, unrelated to PAY-231"}], "created_on": "2025-10-14"},
+ {"id": "T10", "title": "Review Arjun's search PR", "owners": ["Dev"], "status": "done", "review_of": "T1", "created_on": "2025-10-15"},
+ {"id": "T11", "title": "Send the Falcon kickoff doc", "owners": ["Arjun"], "status": "open", "due_phrase": "tonight", "due_date": "2025-10-15", "created_on": "2025-10-15"},
+ {"id": "T12", "title": "Falcon: payments DB migration off the old schema", "owners": ["Priya", "Dev"], "status": "in_progress", "due_phrase": "the next two weeks", "notes": [{"on": "2025-10-17", "text": "Schema draft is up"}], "created_on": "2025-10-16"},
+ {"id": "T13", "title": "Hermes retry bug: retries forever on a 400", "owners": ["Sana"], "status": "in_progress", "due_phrase": "Monday", "due_date": "2025-10-20", "ticket": "APP-402", "created_on": "2025-10-16"},
+ {"id": "T14", "title": "Retro on PAY-231", "owners": [], "status": "open", "due_phrase": "next week", "created_on": "2025-10-17"},
+ {"id": "T15", "title": "Review the Falcon schema draft", "owners": ["Dev"], "status": "open", "due_phrase": "today, after lunch", "due_date": "2025-10-17", "review_of": "T12", "created_on": "2025-10-17"},
+ {"id": "T16", "title": "Review Rohan's onboarding doc draft", "owners": ["Priya"], "status": "open", "review_of": "T7", "created_on": "2025-10-17"}
+]

@@ -1,0 +1,132 @@
+{
+ "meta": {
+  "model": "openai/gpt-oss-120b",
+  "seconds": 34.9,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "update",
+    "item_id": "T2",
+    "title": null,
+    "status": "in_progress",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "231 is back with a different cause (session cookie).",
+    "quotes": [
+     "bad news, 231 is back. Different cause this time, it's the session cookie, not the refresh.",
+     "I'm on it, should be quick now that I know where to look."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T10",
+    "title": null,
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Reviewed the search PR, left two comments.",
+    "quotes": [
+     "Oh, and the search PR, I reviewed it, left two comments, nothing big, Arjun you can just merge."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T1",
+    "title": null,
+    "status": "done",
+    "owners": null,
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Search is merged, watching the numbers.",
+    "quotes": [
+     "Search is merged, I'm watching the numbers, so far so good."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Falcon payments DB migration",
+    "status": "open",
+    "owners": [
+     "Priya",
+     "Dev"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": false,
+    "review_of": null,
+    "note": "Moving off the old schema, kickoff took three hours.",
+    "quotes": [
+     "Falcon is the payments DB migration, we're moving off the old schema.",
+     "Priya and Dev are on it for the next two weeks."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T4",
+    "title": null,
+    "status": null,
+    "owners": null,
+    "due_phrase": "Wednesday",
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Export is going to slip because Falcon ate my week.",
+    "quotes": [
+     "export is going to slip. Falcon ate my week, basically, the kickoff alone was three hours. Say Wednesday?"
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Hermes retry bug",
+    "status": "in_progress",
+    "owners": [
+     "Sana"
+    ],
+    "due_phrase": "tomorrow",
+    "clear_due": null,
+    "ticket": "APP-402",
+    "tentative": false,
+    "review_of": null,
+    "note": null,
+    "quotes": [
+     "I'm picking up the Hermes retry bug, APP-402, the one where it retries forever on a 400. Should be done tomorrow, it's small."
+    ]
+   },
+   {
+    "action": "update",
+    "item_id": "T6",
+    "title": null,
+    "status": "in_progress",
+    "owners": [
+     "Rohan"
+    ],
+    "due_phrase": null,
+    "clear_due": null,
+    "ticket": null,
+    "tentative": null,
+    "review_of": null,
+    "note": "Rohan will take the onboarding doc.",
+    "quotes": [
+     "I can take the onboarding doc, if that's still a thing? I was going to read it anyway, so I'll notice what's wrong."
+    ]
+   }
+  ]
+ }
+}

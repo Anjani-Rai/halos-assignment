@@ -25,17 +25,29 @@ Owners:
   "support") are not owners.
 
 Due dates:
+- due_phrase is always words said in today's transcript, never a date from the list.
 - Copy the exact words said about when this item is due ("Thursday", "tomorrow", "by Thursday,
   Friday at the latest"). Never work out a calendar date yourself.
 - If the date changes during the meeting, use the last one agreed.
 - A date said about someone else's work (another team's fix) is not this item's due date.
 - No date said: null.
+- Reopening an item keeps its due date. Set clear_due true only if someone says the old date no
+  longer applies or will be decided later; otherwise clear_due is null.
 
 Status is one of: open, in_progress, blocked, done, dropped.
 - Work being done now is in_progress. Waiting on someone else is blocked.
 - Things like "in review" or "waiting on QA" go in the note, not the status.
 - Work already finished when first mentioned is created with status done.
-- Someone else can close an item ("Ana reviewed it" closes Ana's review).
+- Someone else can close an item ("Ana went over it" closes Ana's review).
+
+Reviews and follow-up work:
+- Notes hold facts. Work someone will do is always its own item, even when it is about another
+  item. "Ben, could you go over Ana's migration script?" / "Will do." creates an item owned by
+  Ben, with review_of set to the migration item's id. The migration stays Ana's.
+- The reviewer owns the review: whoever says they will look, or the person named once they agree.
+  Someone asked who never answers ("Cleo, can you give the billing page a once-over?" and no
+  reply) is the owner with tentative true.
+- Finishing a review closes only the review item, never the item it reviews.
 
 Other rules:
 - Meetings and calendar events are not items. A task attached to one ("I'll share the agenda") is.
@@ -56,8 +68,10 @@ def _item_view(item: Item) -> dict:
         "title": item.title,
         "owners": item.owners,
         "status": item.status,
-        "due": item.due_date.isoformat() if item.due_date else item.due_phrase,
+        "due_date": item.due_date.isoformat() if item.due_date else None,
+        "due_said": item.due_phrase,
         "ticket": item.ticket,
+        "review_of": item.review_of,
         "notes": [n.text for n in item.notes[-3:]],
     }
 
