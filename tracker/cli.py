@@ -70,23 +70,26 @@ def show_changes(d: Draft) -> None:
             print(f"     ! {f}")
 
 
-def show_list(items) -> None:
-    """Open items, each followed by its open reviews."""
+def open_tree(items: list[Item]) -> list[tuple[Item, bool]]:
+    """Open items, each followed by its open reviews (True = shown under its parent)."""
     open_ = [i for i in items if i.status not in CLOSED]
     open_ids = {i.id for i in open_}
-
-    def line(i, lead):
-        print(f"{lead}{i.id} {i.title} · {', '.join(i.owners) or 'no owner'} · {i.status}"
-              f"{' (tentative)' if i.tentative else ''} · due {fmt_due(i.due_phrase, i.due_date)}"
-              + (f" · review of {i.review_of} (closed)" if i.review_of and i.review_of not in open_ids else ""))
-
+    rows = []
     for i in open_:
         if i.review_of in open_ids:
-            continue  # printed under its parent
-        line(i, "   ")
-        for r in open_:
-            if r.review_of == i.id:
-                line(r, "     ↳ ")
+            continue  # shown under its parent
+        rows.append((i, False))
+        rows += [(r, True) for r in open_ if r.review_of == i.id]
+    return rows
+
+
+def show_list(items) -> None:
+    """Open items, each followed by its open reviews."""
+    open_ids = {i.id for i in items if i.status not in CLOSED}
+    for i, under in open_tree(items):
+        print(f"{'     ↳ ' if under else '   '}{i.id} {i.title} · {', '.join(i.owners) or 'no owner'} · {i.status}"
+              f"{' (tentative)' if i.tentative else ''} · due {fmt_due(i.due_phrase, i.due_date)}"
+              + (f" · review of {i.review_of} (closed)" if i.review_of and i.review_of not in open_ids else ""))
 
 
 def main() -> None:

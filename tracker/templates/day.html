@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% macro due(i) %}{{ fmt_due(i.due_phrase, i.due_date) }}{% endmacro %}
+{% macro owners(names) %}{% if names %}{{ names|join(', ') }}{% else %}<span class="none">no owner</span>{% endif %}{% endmacro %}
+{% block title %}{{ day.strftime('%a %d %b') }} · {{ chain }}{% endblock %}
+{% block body %}
+<p><a href="/">All days</a></p>
+<h1>Standup review · {{ day.strftime('%A %d %b %Y') }}</h1>
+<p class="meta">{{ chain }}{% if d %} · {{ d.model }} · starts from
+  {{ d.base_day.strftime('%a %d %b') ~ "'s list" if d.base_day else 'an empty list' }}{% endif %}</p>
+
+<div class="banners">
+  {% for e in errors if e != locked %}<p class="banner err">{{ e }}</p>{% endfor %}
+  {% if msg %}<p class="banner ok">{{ msg }}</p>{% endif %}
+  {% if locked %}<p class="banner warn">{{ locked }} Nothing on this page can be changed.</p>
+  {% elif stale %}<p class="banner warn">The list this draft started from was approved again since, so approving is refused. Make a new draft: <code>{{ run }}</code></p>
+  {% elif changed_since %}<p class="banner warn">You changed this day after approving it. Approve again to apply the changes.</p>
+  {% elif a and d and not msg %}<p class="banner ok">Approved. You can change it and approve again until a later day is approved.</p>
+  {% endif %}
+</div>
+
+{% if not d %}
+  {% if a %}<p>This day is the starting list for the days after it. It has no draft to review.</p>
+  {% else %}<p>No draft for this day yet. Make one from the command line (5 seconds to a few minutes):</p>
+  <pre>{{ run }}</pre>{% endif %}
+{% endif %}
+
+{% if d or a %}
+<section class="attention">
+  <h2>Needs attention</h2>
+  <p class="hint">On the list as it will be after approving.</p>
+  {% if overdue %}<h3>Overdue</h3><ul>
+    {% for i in overdue %}<li><b>{{ i.id }}</b> {{ i.title }} · {{ owners(i.owners) }} · due {{ due(i) }}</li>{% endfor %}
+  </ul>{% endif %}
+  {% if unowned %}<h3>No owner</h3><ul>
+    {% for i in unowned %}<li><b>{{ i.id }}</b> {{ i.title }} · {{ i.status|replace('_', ' ') }}</li>{% endfor %}
+  </ul>{% endif %}
+  {% if not overdue and not unowned %}<p>Nothing is overdue, and every open item has an owner.</p>{% endif %}
+</section>
+{% endif %}
+
+<form id="review" method="post">
+{% if d %}
+<input type="hidden" name="n" value="{{ cards|length }}">
+<fieldset {% if locked %}disabled{% endif %}>
+<h2>Today's changes ({{ cards|length }})</h2>
+<p class="hint">Ticked changes are applied when you approve. Every tick and edit is saved as you make it.</p>
+{% for c in cards %}{% set p = c.p %}{% set ch = p.change %}{% set item = c.after or c.before %}
+<article class="card{% if not p.applicable %} dead{% elif not p.selected %} off{% endif %}" id="card{{ c.n }}"{% if focus == c.n %} data-focus{% endif %}>
+  <div class="head">
+    <input type="checkbox" name="tick{{ c.n }}" aria-label="Apply this change"{% if p.selected %} checked{% endif %}{% if not p.applicable %} disabled{% endif %}>
+    {% for l in c.labels %}<span class="tag">{{ l }}</span>{% endfor %}
+    <b>{{ p.item_id }}</b> {{ item.title if item else '' }}
+    {% if p.by_lead %}<span class="tag lead">Added by you</span>{% endif %}
+    {% if c.edits %}<span class="tag lead">You changed: {{ c.edits|join(', ') }}</span>{% endif %}
+  </div>
+  {% if ch.action == 'create' %}
+  <p class="what">{{ owners(ch.owners) }} · {{ (ch.status or 'open')|replace('_', ' ') }}{% if ch.tentative %} (tentative){% endif %}
+    · due {{ fmt_due(ch.due_phrase, p.due_date) }}{% if ch.ticket %} · {{ ch.ticket }}{% endif %}{% if ch.review_of %} · review of {{ ch.review_of }}{% endif %}{% if ch.note %} · note: {{ ch.note }}{% endif %}</p>
+  {% elif c.what %}<p class="what">{{ c.what|replace("_", " ") }}</p>{% endif %}
+  {% for sp, q in c.quotes %}<blockquote>“{{ q }}”{% if sp %} <cite>— {{ sp }}</cite>{% endif %}</blockquote>{% endfor %}
+  {% if p.flags %}<ul class="flags">{% for f in p.flags %}<li>{{ f }}</li>{% endfor %}</ul>
+    {% if c.edits %}<p class="hint">These checks were run on the model's version, before your edits.</p>{% endif %}{% endif %}
+  {% if c.after %}{% set i = c.after %}
+  <details id="edit{{ c.n }}"{% if focus == c.n %} open{% endif %}><summary>Edit</summary>
+    <p class="hint">Shows the item as it will be after this change.</p>
+    <div class="grid">
+      <label>Title <input name="title{{ c.n }}" value="{{ i.title }}"></label>
+      <label>Owners, comma-separated <input name="owners{{ c.n }}" value="{{ i.owners|join(', ') }}" placeholder="nobody"></label>
+      <label>Status <select name="status{{ c.n }}">{% for s in STATUSES %}<option value="{{ s }}"{% if s == i.status %} selected{% endif %}>{{ s|replace('_', ' ') }}</option>{% endfor %}</select></label>
+      <label>Due, in words <input name="due{{ c.n }}" value="{{ i.due_phrase or '' }}" placeholder="none, or e.g. Wednesday, Oct 22">
+        <small>{{ i.due_date.strftime('%a %d %b') if i.due_date else 'no date' }}</small></label>
+      <label>Ticket <input name="ticket{{ c.n }}" value="{{ i.ticket or '' }}" placeholder="PAY-123"></label>
+      <label>Review of <select name="review_of{{ c.n }}"><option value="">nothing</option>
+        {% for b in base %}{% if b.id != p.item_id %}<option value="{{ b.id }}"{% if b.id == i.review_of %} selected{% endif %}>{{ b.id }} {{ b.title }}</option>{% endif %}{% endfor %}</select></label>
+      <label class="inline"><input type="checkbox" name="tentative{{ c.n }}"{% if i.tentative %} checked{% endif %}> Tentative</label>
+      <label class="wide">Note added today <input name="note{{ c.n }}" value="{{ ch.note or '' }}"></label>
+    </div>
+    {% if p.by_lead %}<button name="do" value="remove:{{ c.n }}">Remove this change</button>{% endif %}
+  </details>
+  {% endif %}
+</article>
+{% else %}<p>The model found no changes. The list carries forward as it is.</p>
+{% endfor %}
+{% endif %}
+
+{% if d or a %}
+<h2>List after approving</h2>
+<p class="hint">Open items, with open reviews under the item they review.{% if d %} Change or Drop adds a change of your own above.{% endif %}</p>
+<div class="table"><table>
+  <tr><th>Id</th><th>Title</th><th>Owners</th><th>Status</th><th>Due</th><th>Ticket</th>{% if d %}<th></th>{% endif %}</tr>
+  {% for i, under in tree %}
+  <tr{% if i in overdue %} class="late"{% endif %}>
+    <td>{{ '↳ ' if under }}{{ i.id }}</td>
+    <td>{{ i.title }}{% if i.review_of and not under %} <small>review of {{ i.review_of }} (closed)</small>{% endif %}</td>
+    <td>{{ owners(i.owners) }}</td>
+    <td>{{ i.status|replace('_', ' ') }}{% if i.tentative %} (tentative){% endif %}</td>
+    <td>{{ due(i) }}</td><td>{{ i.ticket or '' }}</td>
+    {% if d %}<td>{% if i.id in base_ids %}<button name="do" value="change:{{ i.id }}">Change</button>
+      <button name="do" value="drop:{{ i.id }}">Drop</button>{% else %}<small>new today</small>{% endif %}</td>{% endif %}
+  </tr>
+  {% endfor %}
+</table></div>
+{% if closed %}
+<details id="closed"><summary>Closed items ({{ closed|length }})</summary>
+<div class="table"><table>
+  {% for i in closed %}
+  <tr><td>{{ i.id }}</td><td>{{ i.title }}</td><td>{{ owners(i.owners) }}</td><td>{{ i.status }}</td>
+    {% if d %}<td>{% if i.id in base_ids %}<button name="do" value="change:{{ i.id }}">Change</button>{% endif %}</td>{% endif %}</tr>
+  {% endfor %}
+</table></div>
+</details>
+{% endif %}
+{% endif %}
+{% if d %}</fieldset>{% endif %}
+</form>
+
+{% if d %}
+<form id="add" method="post">
+<fieldset {% if locked %}disabled{% endif %}>
+  <h2>Add a missed item</h2>
+  <div class="grid">
+    <label>Title <input name="new_title" required></label>
+    <label>Owners, comma-separated <input name="new_owners" placeholder="nobody"></label>
+    <label>Status <select name="new_status">{% for s in STATUSES %}<option value="{{ s }}">{{ s|replace('_', ' ') }}</option>{% endfor %}</select></label>
+    <label>Due, in words <input name="new_due" placeholder="none, or e.g. Wednesday, Oct 22"></label>
+    <label>Ticket <input name="new_ticket" placeholder="PAY-123"></label>
+    <label>Review of <select name="new_review_of"><option value="">nothing</option>
+      {% for b in base %}<option value="{{ b.id }}">{{ b.id }} {{ b.title }}</option>{% endfor %}</select></label>
+    <label class="inline"><input type="checkbox" name="new_tentative"> Tentative</label>
+    <label class="wide">Note <input name="new_note"></label>
+  </div>
+  <button name="do" value="add">Add item</button>
+</fieldset>
+</form>
+
+<h2>Approve</h2>
+<p><button class="primary" form="review" name="do" value="approve">Approve {{ day.strftime('%a %d %b') }}</button>
+  <span class="hint">Applies the ticked changes to {{ d.base_day.strftime('%a %d %b') ~ "'s list" if d.base_day else 'an empty list' }} and saves the result.</span></p>
+{% endif %}
+
+{% if t %}
+<details id="transcript"><summary>Transcript ({{ t.turns|length }} lines)</summary>
+  <ol class="transcript">{% for sp, text in t.turns %}<li><b>{{ sp }}:</b> {{ text }}</li>{% endfor %}</ol>
+</details>
+{% endif %}
+{% endblock %}

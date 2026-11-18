@@ -73,3 +73,5 @@ class Proposed(BaseModel):
     flags: list[str] = []
     selected: bool = True
     applicable: bool = True  # false when the change cannot apply at all (unknown item id)
+    by_lead: bool = False  # added on the review page, not by the model
+    original: "Proposed | None" = None  # as the code showed it, kept on the lead's first edit

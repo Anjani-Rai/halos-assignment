@@ -2,7 +2,7 @@ from datetime import date
 from difflib import SequenceMatcher
 
 from . import checks
-from .models import CLOSED, Event, Item, Note, Proposed, Reply
+from .models import CLOSED, Change, Event, Item, Note, Proposed, Reply
 from .transcript import Transcript
 
 SIMILAR = 0.75  # title similarity that triggers a "possible duplicate" flag
@@ -20,6 +20,16 @@ def _owners(o: list[str]) -> str:
 
 def next_id(items: list[Item]) -> int:
     return max((int(i.id[1:]) for i in items if i.id[1:].isdigit()), default=0) + 1
+
+
+def edited(p: Proposed) -> list[str]:
+    """What the lead changed from the code's version: Change field names, plus "selected" for a
+    tick. The owner/date correction rate counts "owners" and "due_phrase" over approved days."""
+    if p.original is None:
+        return []
+    o = p.original
+    return [f for f in Change.model_fields if getattr(o.change, f) != getattr(p.change, f)] + (
+        ["selected"] if o.selected != p.selected else [])
 
 
 def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:

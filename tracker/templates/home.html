@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>Standup review</h1>
+<p class="hint">Each folder in data/ is one run of the week. Open a day to review its draft.</p>
+{% for c, days in chains %}
+<section>
+  <h2>{{ c }}</h2>
+  <ul class="days">
+    {% for d, state in days %}
+    <li><a href="/{{ c }}/{{ d }}">{{ d.strftime('%a %d %b') }}</a><span class="state {{ state|replace(' ', '-') }}">{{ state }}</span></li>
+    {% endfor %}
+  </ul>
+</section>
+{% else %}
+<p>No data/ folder yet. Draft a day first:</p>
+<pre>uv run --env-file .env python -m tracker.cli run transcripts/2025-10-13.txt --provider groq</pre>
+{% endfor %}
+{% endblock %}

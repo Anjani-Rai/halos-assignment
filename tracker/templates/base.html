@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Standup review{% endblock %}</title>
+<style>
+:root { --bg: #fafafa; --fg: #1d1d1f; --muted: #6b6b70; --line: #dcdce0; --card: #fff;
+        --warn: #8a5a00; --warn-bg: #fff4dc; --err: #a4161a; --err-bg: #fde8e8; --ok: #1b6b3a; --ok-bg: #e3f4e8;
+        --accent: #2453c7; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #161618; --fg: #ececf0; --muted: #9a9aa2; --line: #34343a; --card: #1f1f23;
+          --warn: #f0c46a; --warn-bg: #3a2e12; --err: #f39a9a; --err-bg: #3d1a1a; --ok: #8fd6a8; --ok-bg: #16301f;
+          --accent: #8fb0ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 16px 16px 80px; }
+a { color: var(--accent); }
+h1 { font-size: 22px; margin: 8px 0 2px; } h2 { font-size: 17px; margin: 28px 0 8px; } h3 { font-size: 14px; margin: 10px 0 4px; }
+.meta, .hint, small { color: var(--muted); }
+.hint { font-size: 13px; }
+.banners { position: sticky; top: 0; z-index: 2; }
+.banner { margin: 8px 0; padding: 8px 12px; border-radius: 6px; }
+.err { background: var(--err-bg); color: var(--err); } .warn { background: var(--warn-bg); color: var(--warn); }
+.ok { background: var(--ok-bg); color: var(--ok); }
+section.attention { border: 1px solid var(--line); border-radius: 8px; padding: 4px 14px 10px; background: var(--card); }
+section.attention ul { margin: 0; padding-left: 18px; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.card.off { opacity: .65; } .card.dead { opacity: .5; }
+.head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.head input[type=checkbox] { width: 18px; height: 18px; margin: 0 4px 0 0; }
+.tag { font-size: 12px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); }
+.tag.lead { border-color: var(--accent); color: var(--accent); }
+.what { margin: 6px 0; }
+blockquote { margin: 4px 0 4px 2px; padding-left: 10px; border-left: 3px solid var(--line); color: var(--muted); }
+cite { font-style: normal; }
+.flags { margin: 6px 0; padding-left: 18px; color: var(--warn); }
+details summary { cursor: pointer; color: var(--accent); margin-top: 4px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 14px; margin: 8px 0; }
+.grid label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); }
+.grid label.inline { flex-direction: row; align-items: center; gap: 6px; }
+.grid label.wide { grid-column: 1 / -1; }
+input, select, button { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 4px 6px; }
+button { cursor: pointer; padding: 3px 10px; }
+button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); padding: 7px 16px; font-weight: 600; }
+button:disabled, input:disabled, select:disabled { cursor: not-allowed; opacity: .6; }
+.table { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--card); }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+th { color: var(--muted); font-weight: 500; }
+td:has(button) { white-space: nowrap; }
+tr.late td:nth-child(5) { color: var(--err); font-weight: 600; }
+.none { color: var(--warn); }
+.transcript { padding-left: 22px; } .transcript li { margin: 3px 0; }
+pre { background: var(--card); border: 1px solid var(--line); padding: 8px 10px; border-radius: 6px; overflow-x: auto; }
+.days { list-style: none; padding: 0; } .days li { margin: 4px 0; }
+.state { font-size: 12px; margin-left: 6px; color: var(--muted); } .state.draft-waiting { color: var(--warn); }
+</style>
+<script>
+// Every tick and edit saves at once; the page redraws from the server's answer, keeping scroll
+// and open sections. Without this script the forms still work as plain posts.
+async function send(form, submitter) {
+  const r = await fetch(location.pathname, {method: 'POST', body: new FormData(form, submitter)});
+  const html = await r.text();
+  // Read these after the answer, so a section opened or a field entered meanwhile stays so.
+  // shortcut: text typed in the ~50ms a save takes is lost; fine for one local user.
+  const y = scrollY, open = [...document.querySelectorAll('details[open]')].map(e => e.id);
+  const a = document.activeElement, focused = a?.matches('input, select') ? a.name : null;
+  document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
+  open.forEach(id => document.getElementById(id)?.setAttribute('open', ''));
+  if (focused) document.querySelector(`[name="${focused}"]`)?.focus({preventScroll: true});
+  const f = document.querySelector('[data-focus]');
+  f ? f.scrollIntoView({block: 'center'}) : scrollTo(0, y);
+}
+document.addEventListener('change', e => { if (e.target.form?.id === 'review') send(e.target.form); });
+document.addEventListener('submit', e => { e.preventDefault(); send(e.target, e.submitter); });
+</script>
+</head>
+<body><main>{% block body %}{% endblock %}</main></body>
+</html>
