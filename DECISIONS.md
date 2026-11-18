@@ -461,6 +461,125 @@ What this shows about our checks:
 - **Known limit:** a model that quotes the wrong line can still bring in a wrong date; the lead
   sees the quote next to it.
 
+## 28. Deleting an item means dropping it
+
+- **Chosen:** "Drop" on the review page adds an update by the lead that sets the status to
+  `dropped`, one of the five statuses. Dropped items leave the open list like done ones, keep
+  their history, and can be reopened.
+- **Rejected:** a third action that removes the item. Section 10 keeps two actions, the model
+  would never use the third, and the item's history would be gone.
+- A new item the model proposed today is removed by unticking its change, not by dropping it.
+
+## 29. Lead edits are kept next to the code's version
+
+- **Chosen:** each change carries `by_lead` (the lead added it) and `original` (the change as
+  the code showed it, saved on the lead's first edit or tick change). Both live in the draft
+  while the lead works, and `Store.approve` copies them into the approved file.
+  `apply.edited()` lists what the lead changed. The owner/date correction rate is the share
+  of model changes, across approved days, whose `edited()` includes `owners` or `due_phrase`.
+  A rejected change shows as `selected`.
+- **Rejected:** a separate edits file per day, matched to the draft by position. It breaks when a
+  day is re-run, and two files must stay in step. Also rejected: storing only the names of the
+  changed fields, which cannot tell a value put back and loses the model's value.
+
+## 30. The page does not run the model
+
+- **Chosen:** drafts come from the command line. For a day with no draft, the page shows the
+  exact command to run. The page needs no keys and never calls a provider.
+- **Why:** a day took 5s to 54s on Groq and up to 412s on Workers AI (section 25). A button
+  that waits that long needs a background job, a progress check and a guard against two runs
+  at once.
+- **Rejected:** a button that waits for the run to finish, and a background job with progress
+  polling. Either is the upgrade if a lead should not touch the command line.
+
+## 31. The chain is in the web address
+
+- **Chosen:** `/<chain>/<day>`, where the chain is a folder in `data/`. The home page lists
+  every folder with each day's state (approved, draft waiting, no draft). A name ending in
+  `-heldout` reads its transcripts from `tests/heldout`, the same setup as the command line's
+  `heldout` command. Only folder names that exist are accepted, so the address cannot point
+  outside `data/`.
+- **Rejected:** one chain fixed when the server starts. Comparing the Groq and Workers AI
+  weeks would need a restart.
+
+## 32. Three packages to serve the page
+
+- **Chosen:** `uvicorn` (serves the page), `jinja2` (templates that escape text by default) and
+  `python-multipart` (FastAPI's form reader). Five packages in all, with `click` and
+  `markupsafe`.
+- **Why `python-multipart`:** Starlette's `request.form()` refuses to run without it even for
+  plain forms. Its assertion fires before it checks the form type
+  (`starlette/requests.py`, `_get_form`).
+- **Rejected:** `fastapi[standard]`, measured at 43 new packages, among them the FastAPI Cloud
+  deploy tool (which brings in Sentry; it only reports when someone is logged in to FastAPI
+  Cloud), OpenTelemetry exporters, Typer and Rich. Also rejected: `fastapi[standard-no-fastapi-cloud-cli]`
+  (37), and HTML built from Python strings with forms read by `urllib.parse.parse_qs`. That
+  needs no new package but escapes by hand, and transcripts are untrusted text.
+- `httpx`, which FastAPI's test client needs, is added in phase 5 as a dev dependency.
+
+## 33. How the lead edits a change
+
+- **Chosen:** the edit form shows the item as it will be after the change. Only the values the
+  lead changed from what was shown become change fields. A blank owner box means nobody, and
+  a blank due date clears it (`clear_due`).
+- **Due dates are typed as words** ("Wednesday", "Oct 24") and worked out by the same code as
+  the model's (section 17). The page shows the resolved date next to the field.
+- **Owners:** "Devansh" still maps to Dev. Any other name is accepted, because the lead is
+  trusted. **Ticket:** must look like `PAY-123`, or it is refused with a message.
+- **The code's flags are not rerun after an edit.** They describe the model's version, and the
+  card says so once the lead has edited it.
+- **Rejected:** editing the raw change fields, where blank means "unchanged". There is then no
+  way to say "remove the owner" without a special value.
+- **Known limit:** `apply` only sets a ticket or review link, never removes one, so one set on an
+  earlier day cannot be removed here. After each save the page checks that every value the
+  lead changed reached the item, and names any field that did not.
+- **Lead changes go to items on the list the day starts from.** "Change" and "Drop" are offered
+  only on those, because `apply` cannot update an item whose create is unticked. A lead-added
+  item does not go through `review`, so it gets no duplicate flags.
+
+## 34. Saving and refusals on the page
+
+- **Every tick and edit saves at once.** A small script posts the form, the server writes the
+  draft with the same temp-file-and-rename write as the command line, and the page redraws in
+  place. Without the script the forms still work as plain posts. Rejected: a Save button
+  (closing the browser before pressing it loses work).
+- **Found while testing:** the redraw first restored the sections that were open when the save
+  started, so a section the lead opened during the save closed again. It now reads them when
+  the answer arrives. Text typed in the ~50ms a save takes is still lost (one local user).
+- **Refusals come from `Store`, unchanged:** an earlier day not approved, a later day already
+  approved, a draft whose starting list was approved again since. The page shows the first two
+  when it loads, with every control disabled. It shows the third with the command to re-run
+  the day. The Approve button still posts, so the Store's own message is shown.
+- **A page that is out of date is refused.** Each post carries the number of changes it showed.
+  If the draft no longer has that many, nothing is saved, rather than an edit landing on the
+  wrong change.
+- **Local only:** the server listens on 127.0.0.1, and a post sent from another site's page
+  (its `Origin` header names another host) gets 403. There is no login (section 11).
+- **Approving after an edit was refused** (bad ticket, empty title) is blocked until the
+  problem is fixed.
+
+## 35. Review page check (2026-11-18, in a browser)
+
+Run on `data/page-check/`, a copy of the Groq week with Thursday's and Friday's approvals
+removed, with Playwright's Chromium.
+
+- **Friday first:** the page said "Approve 2025-10-16 first" and disabled every control.
+  Approve posted anyway and got the same refusal from `Store`.
+- **Thursday edits:** unticked T10, set T12's owner to "Devansh" (saved as Dev), set T13's due to
+  "Monday" (Mon 20 Oct), added an item, dropped T3, and gave T11 a second owner and no due date.
+  A bad ticket and removing T2's earlier ticket were both refused with messages. "Remove this
+  change" removed a lead-added change. After a reload everything was there, and `edited()`
+  listed `owners` on T12 and `due_phrase` on T13.
+- **Escaping:** an added title containing `<b>` and `<img onerror=...>` showed as text, created
+  no image and logged nothing.
+- **Approving:** the edited Thursday approved (9 open items). Friday was then refused because its
+  starting list had changed. With Thursday's draft put back and approved unedited, Friday
+  approved. The page's approved Thursday and Friday lists equal the command line's exactly.
+  Thursday was then shown as frozen.
+- Also checked: phone width (390px, no sideways scroll) in dark mode, the held-out Monday with
+  its transcript from `tests/heldout`, the seeded Friday with no draft, a day with no draft
+  (shows the command), unknown chain 404, cross-site post 403.
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.
