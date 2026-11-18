@@ -209,6 +209,229 @@ One sample each, so this is not a ranking.
 - **Rejected:** a prompt rule forcing the key's reading (tunes the prompt to the answer key);
   changing the key to "open" (moves the line, does not remove it).
 
+## 15. Reopening keeps the due date
+
+- **Chosen:** reopening an item keeps its due date. Only words in the meeting change it: a new
+  date replaces it; "the old deadline no longer applies" or "we'll decide the date later" clears
+  it (the change's `clear_due` field). When an item is reopened with its old date and no new one,
+  the review page asks "Reopened with the old due date. Still right?"
+- **Why:** code never drops data because of a rule nobody said out loud, so the list stays
+  predictable.
+- **Cost, seen in our data:** PAY-231 keeps 14 Oct when it is reopened on Thursday 16 Oct, so it
+  shows as overdue though Dev missed nothing. The question on the review page is for that case.
+- **Rejected:** clearing the date on every reopen (first proposal). It hides an overdue item when
+  the old date really still applies. Not a history argument: the old date is kept in each day's
+  record either way.
+- EXPECTED.md Thursday changed from "old due date cleared" to "kept, flagged for the lead".
+
+## 16. Running days before the review page exists
+
+- **Chosen:** for phases 3 and 5, a command-line flag (`--approve`) approves each draft as is,
+  so Tuesday can start from Monday's list. Each provider keeps its own lists in
+  `data/<provider>/`, so the three weeks never mix.
+- **Why:** the review page is phase 4; the matching tests need a week of chained days now.
+- Real use goes through the review page; the README says so.
+
+## 17. Phase 3 build choices
+
+- **Unticked by default** (the lead must opt in): no quote, a quote not found in the meeting, a
+  due change on a closed item. **Cannot apply at all:** an update to an id not on the list.
+  **Ticked, with a flag:** possible duplicate, owner removed, due phrase not said, bad ticket,
+  no owner yet, reopened with the old date.
+- **A bad owner on an update leaves the owners unchanged.** If every name the model gives fails
+  the check ("infra"), the update keeps Sana instead of wiping her. A create gets no owner.
+- **Due dates: the first firm day in the phrase wins** ("today, maybe tomorrow worst case" is
+  today). A vague phrase before any firm one ("next week") gives no date. "The 3rd" said on the
+  29th is next month; "Jan 5" said in December is next year; an impossible date ("Feb 30") gives
+  no date. 22 phrases checked by hand, all correct.
+- **Duplicate titles: similarity 0.75 or more** (stdlib `difflib`). Measured: a true duplicate
+  ("Search latency" vs "Search latency fix") scores 0.88; the closest real pair of different
+  items ("Retro on PAY-231" vs "Auth bug PAY-231") 0.62. Known limit: a renamed duplicate
+  ("Export feature" vs "Atlas export", 0.46) is not caught; only the model's matching covers it.
+- **An item carries its history:** one line per change ("status in_progress -> done") with its
+  quotes, so the lead sees why an item looks the way it does.
+- **A draft keeps the list it started from.** Approving is refused if that list was re-approved
+  since, because the draft's changes were checked against the old one.
+- **One command line (`tracker.cli`) replaces the phase 2 run script.**
+
+## 18. First full week (2026-11-18, one run per provider)
+
+Against EXPECTED.md, Monday to Friday, each day approved as is.
+
+| | gemini-3.8-flash | gpt-oss-120b | qwen3:14b |
+|---|---|---|---|
+| Duplicates created | 0 | 0 | 0 |
+| Matching traps ("Atlas export", "231 is back", Rohan takes the doc, Atlas login kept separate) | all passed | all passed | all passed |
+| Expected items missed | 5 | 9 | 8 |
+| Wrong fields | none | Dev added as search owner; infra's cert made an item | auth marked done on Tue; cert date given to Sana's deploy; garbled title "APP-40值" |
+| Time per day | 25s–318s (timeouts under load) | 12s–37s | 55s–147s |
+
+- **Matching, the part we expected to be hard, works on all three.** The weak spot is recall:
+  new work said next to an existing item. All three missed "I'll look at Dev's PR after this";
+  Gemini folded Friday's two reviews into notes and skipped the retro.
+- **Bug found and fixed (ours, not the model's):** the list sent to the model showed due dates as
+  `"Mon 2025-10-20 (said: Monday)"`. qwen copied that format into its due phrase, once with a
+  date it worked out wrongly; the quote check refused the phrase, so real dates were lost
+  (APP-402 "tomorrow", export "Wednesday"). Now `due_date` and `due_said` are separate fields,
+  and the prompt says the due phrase is always words from today's transcript. Gemini's
+  Wednesday to Friday ran after the fix; the other runs did not.
+- **Gemini is slow under load.** One call took 318s (two 120s timeouts, then success). A lead
+  waiting on the review page would not wait that long.
+
+## 19. Reviews are their own items, linked to what they review
+
+- **Chosen:** a review is an item owned by the reviewer, with `review_of` pointing at the item
+  under review. The parent keeps its owner and shows its open reviews. The general prompt rule:
+  notes hold facts; work someone will do is always its own item (this also covers the retro).
+- **Who reviews:** the person who says "I'll look at it", or the person named once they agree
+  ("Dev's reviewing." / "Yeah, today"). Someone asked who never answers is the owner marked
+  tentative, so nobody is assigned without saying yes.
+- **Closing:** finishing a review closes only the review. If the parent closes while a review is
+  open, the review is flagged "<parent> is done. Was the review done too?" A `review_of` id not on
+  the list is dropped and flagged; the review item is kept.
+- **Rejected: a note on the parent** ("waiting on Priya"). The reviewer's work never shows on
+  their list, so nobody chases it. All three models did this in the first week (section 18).
+- **Rejected: moving the parent item to the reviewer** while they review. The fixer's work
+  vanishes from their list though they still ship it; someone has to move it back afterwards; and
+  when "231 is back" the item could still sit with the reviewer. Fixer and reviewer working at
+  once is normal, so both keep an item.
+
+## 20. A held-out meeting for an honest score
+
+- **Chosen:** one extra meeting, `tests/heldout/2025-10-20.txt`, with its answer key in
+  EXPECTED.md, written before the prompt changes in section 19. It is never used to tune the
+  prompt. It starts from the answer key's Friday list (`tests/heldout/base.json`), so a model's
+  mistake on Tuesday does not spoil its Monday score.
+- **Why:** the prompt is now being fixed against the five transcripts it is scored on, so that
+  score gets more flattering with every fix. The held-out score is the number for the README.
+- **Limit:** I wrote both the prompt and the held-out meeting, so it is not fully independent.
+  Its two phrases "right after this" and "after standup" are not in the date rules; they stay
+  that way until it has been scored once, or the score would be tuned too.
+
+## 21. Review build choices
+
+- **A review can only link to an item already on the list.** The model learns a new item's id
+  only after code assigns it, so a review of something created in the same meeting is created
+  without a link and flagged. Chosen because work is normally built one day and raised for review
+  at a later standup; every review in the six meetings is of an item that already existed.
+  Rejected: letting the model point at another create in the same reply by position (more code,
+  a new way to fail).
+- **A bad link is dropped, the review is kept.** A `review_of` id that is not on the list, or that
+  points at the item itself, is removed and flagged; the change stays ticked.
+- **Closing a parent with an open review is flagged, not blocked.** The flag names the open review
+  ("... is done. Was the review done too? (T15 ... is still open.)"). It is not raised when the
+  same meeting also closes that review. The change stays ticked: the lead decides.
+- **Closing a review never closes its parent.** No code was needed: `apply` only changes the item
+  a change names.
+- **The model sees the links.** The list sent to it includes each item's `review_of`, so
+  "Ana went over it" can be matched to Ana's review rather than to the item under review.
+- **Prompt examples reworded.** The old "Ana reviewed it" example overlapped Thursday's "I
+  reviewed it" (section 12); it is now "Ana went over it". The new review examples use "go over",
+  "Will do." and "once-over", none of which appear in any transcript.
+- **Fixed on the way:** `tests/heldout/base.json` already carried `review_of`, but `Item` had no
+  such field, so Pydantic dropped it on load.
+
+## 22. Groq replaces Gemini
+
+- **Chosen:** Groq with `openai/gpt-oss-120b` as the third provider (`groq` in `tracker/llm.py`,
+  key `GROQ_API_KEY`). Groq's docs list it as a production model with strict structured outputs
+  ("constrained decoding to guarantee that the output will always match your schema exactly").
+  The held-out meeting took 9.3s on the first try.
+- **Why:** Gemini's free key failed most runs. On 2026-11-18 the held-out meeting got two 503s
+  (overloaded), then 429 (rate limit) on five more tries between 14:15 and 14:27. The SDK's four
+  retries span about 7 seconds, too short to ride out either.
+- **Cost:** Workers AI runs the same model, so the three providers now cover two models, not
+  three. The Groq runs measure the host (speed, reliability), not a different model.
+- **Rejected:** Groq `qwen/qwen3.8-27b` (a different model with strict mode, but Groq marks it
+  "Preview... for evaluation purposes only", so it could vanish before a reviewer runs this);
+  xAI Grok (third-party guides say its free credits have ended; xAI's docs refused our fetch, so
+  unverified); Cerebras (free tier replaced by a card-required trial, per third-party sites).
+- **Not verified:** Groq's free-plan limits. Its docs table shows 8K tokens per minute and 200K
+  per day for the Developer plan; one of our requests is about 2,800 input tokens.
+
+## 23. Held-out first score (2026-11-18, before any date-rule change)
+
+Monday 20 Oct from `tests/heldout/base.json`, scored by hand from each raw reply against the
+EXPECTED.md held-out table. Ten expected changes plus one "no change" (export).
+
+| Expected change | gpt-oss-120b (Workers AI) | gpt-oss-120b (Groq) | qwen3:14b (Ollama) |
+|---|---|---|---|
+| Kickoff doc due moved to 20 Oct | no due; marked in progress (minor) | same as Workers AI | missed |
+| New review of the APP-402 fix (Rohan, 20 Oct) | created, linked; no due | created, linked; no due | created, linked; "after standup" gives no date |
+| APP-402 note "fix is up" | missed | missed | missed |
+| Schema review: due 20 Oct, note "halfway" | missed | missed; "halfway" put on Falcon (T12) | missed |
+| Flaky CI test: Dev, tentative, 21 Oct | right | right | right |
+| Priya's onboarding review closed | right | missed | missed |
+| Onboarding doc due 22 Oct | right | right | missed |
+| Retro: Arjun owns it, date cleared | date cleared, owner missed | date cleared, owner missed | date cleared, owner missed |
+| Falcon note: infra freeze, due unchanged | right | right | note missed; freeze given as due, code dropped it |
+| New CSV reply for Dev, 20 Oct | right (in progress, minor) | right (in progress, minor) | right |
+| Export: no change | right | right | right |
+| **Right / partly / missed (of 10)** | **5 / 3 / 2** | **4 / 3 / 3** | **2 / 3 / 5** |
+| Traps failed | none | "the schema draft" matched to Falcon, not Dev's review | infra's freeze date as Falcon's due (caught by the quote check) |
+| Time | 50.8s | 9.3s | 146.1s |
+
+- **Reviews work as built:** all three created the APP-402 review owned by Rohan and linked to
+  APP-402, with Sana still on APP-402. No duplicates.
+- **Weak spot, same as the week (section 18):** updates to an existing item named indirectly
+  ("the schema draft", "the APP-402 fix is up"), and an owner added by someone else's words
+  (Arjun on the retro).
+- **One due date was lost to our date rules, not the model:** Ollama's "after standup". For the
+  kickoff doc and the review, the other models gave no due phrase at all.
+- **Bug found and fixed (ours):** when the model sent two updates to one item, the command line
+  printed the last one's summary for both, which hid Groq's wrong "halfway" note on Falcon. Each
+  change now shows its own history line.
+
+## 24. Two same-day phrases, added after the held-out score
+
+- **Made after section 23 was recorded.** "after this" and "after standup" now mean the meeting
+  day. "after this" also covers "right after this" (held-out) and Tuesday's "I'll look at Dev's
+  PR after this", which the answer key dates 14 Oct. "I'll look after." (Tuesday, Atlas login)
+  still gives no date, as the key expects.
+- **Rejected:** only "right after this", as first planned. It would have left Tuesday's review
+  without its date.
+- **Effect on the held-out score:** one field. Ollama's APP-402 review would now get 20 Oct. The
+  other models gave no phrase, so nothing changes for them. Section 23 stays the honest number.
+
+## 25. Clean week rerun (2026-11-18, final prompt, one run per provider)
+
+Started from an empty `data/`, each day approved as is with `--approve`. Scored by hand against
+the 33 changes in the EXPECTED.md day tables ("none" rows not counted). "Partly" means the right
+change with one field missing; "unticked" means the quote check held it back, so `--approve`
+skipped it.
+
+| | gpt-oss-120b (Workers AI) | gpt-oss-120b (Groq) | qwen3:14b (Ollama) |
+|---|---|---|---|
+| Right / partly / wrong / unticked / missed (of 33) | 25 / 1 / 4 / 0 / 3 | 25 / 3 / 0 / 0 / 5 | 18 / 2 / 3 / 2 / 8 |
+| Duplicates created | 0 | 0 | 0 |
+| Matching traps ("Atlas export", "231 is back", Rohan takes the doc, Atlas login kept separate) | all passed | all passed | all passed |
+| Review items created (of 4) | 3, all linked | 3, all linked | 2, one link dropped (pointed at an id that was never applied) |
+| Retro created | yes | yes | no |
+| Non-items created | none | infra's cert as an item | "Falcon schema draft" as Priya's item |
+| Time per day | 43s–58s; Monday 412s (two 180s timeouts) | 5s–54s (429s, waits of 8–27s each) | 87s–134s |
+
+Wrong fields and misses that matter:
+- **Infra's cert date (Tuesday) fooled all three.** Workers AI and Ollama gave it to Sana's deploy;
+  Groq made the cert an item. The quote check cannot catch this: "tomorrow morning" was said.
+- **Rohan's "I'll send it to Priya to check" became a note on all three**, not a review. The rule
+  in section 19 covers it ("the person named once they agree"); the models did not apply it.
+- **The parent-closed flag worked:** Groq missed that "Priya looked at it" closes her review, and
+  both days it closed PAY-231 the lead saw "Auth bug is done. Was the review done too?"
+- Workers AI: Hermes deploy with no owner (Sana's own words); Atlas login with no owner on Tuesday;
+  export's "Wednesday" given to the new Falcon item; search never closed.
+- Ollama: stitched quotes with "..." twice, so Monday's auth bug and Thursday's Falcon item were
+  unticked; never created the export feature; reopened PAY-231 with Sana's "tomorrow"; cleared
+  APP-402's date instead of moving it to Monday.
+
+What this shows about our checks:
+- **A due phrase is checked against the whole meeting, not the speaker's line.** Ollama's reopen
+  took "tomorrow" from Sana's turn and the check passed it.
+- **Similar-title flags fire on reviews and retros of an item** ("Retro on Auth bug (token
+  refresh)" vs "Auth bug (token refresh)"). Noise for the lead, not a wrong change.
+- Compared with section 18: duplicates stayed at 0 and the four matching traps still pass. The
+  review rule turned most reviews into items (3 of 4 on both gpt-oss runs, against none in the
+  first week). Section 18 counted misses in another unit, so its numbers are not compared here.
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.

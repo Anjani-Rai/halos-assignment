@@ -64,7 +64,7 @@ Traps:
 
 | Change | Item | Detail | Evidence |
 |---|---|---|---|
-| reopen | Auth bug PAY-231 | back to in progress, new cause: session cookie; old due date cleared | "231 is back. Different cause this time, it's the session cookie" / "I'm on it" |
+| reopen | Auth bug PAY-231 | back to in progress, new cause: session cookie; old due date (14 Oct) kept, flagged for the lead | "231 is back. Different cause this time, it's the session cookie" / "I'm on it" |
 | close | Review Arjun's search PR | done | "I reviewed it, left two comments, nothing big" |
 | close | Search latency fix | done (merged; Arjun is watching the numbers) | "Already did. Search is merged" |
 | create | Falcon: payments DB migration off the old schema | Priya and Dev; "next two weeks", no date; Dev part-time until PAY-231 closes | "Priya and Dev are on it for the next two weeks." |
@@ -113,3 +113,32 @@ Traps:
 
 Done during the week: search fix, PAY-231, review of the PAY-231 PR, Atlas login slow, Hermes
 staging deploy, review of the search PR, CSV reply.
+
+## Held-out: Monday 20 Oct (never used to tune the prompt)
+
+Transcript `tests/heldout/2025-10-20.txt`, written before the prompt changes it is meant to
+check. It starts from this answer key's Friday list (`tests/heldout/base.json`, ids T1–T16), not
+from each model's own Friday, so earlier misses do not spoil this score.
+
+| Change | Item | Detail | Evidence |
+|---|---|---|---|
+| update | T11 Send the Falcon kickoff doc | due 15 Oct → 20 Oct; still open | "I never sent it, sorry. I'll do it right after this." |
+| create | Review the APP-402 fix | Rohan, due 20 Oct, open, review of T13 | "Rohan, can you review it?" / "Sure, I'll do it after standup." |
+| update | T13 Hermes retry bug APP-402 | note: fix is up; stays in progress, Sana | "The APP-402 fix is up." |
+| update | T15 Review the Falcon schema draft | due 17 Oct → 20 Oct; note: halfway | "Devansh, did you get to the schema draft?" / "Halfway through. I'll finish it today." |
+| update | T4 Flaky CI test | owner none → Dev, tentative; due 21 Oct | "I might take a look tomorrow, if Falcon lets me." |
+| close | T16 Review Rohan's onboarding doc draft | done | "Rohan, I read your onboarding draft, it's good, I left a couple of comments." |
+| update | T7 Onboarding doc | due none → 22 Oct; stays in progress, Rohan | "I'll fix those and then it's done, probably Wednesday." |
+| update | T14 Retro on PAY-231 | owner none → Arjun; due "next week" cleared | "let's not pin a date yet. I'll set it up once 231 has been quiet for a week." |
+| update | T12 Falcon migration | note: infra schema freeze until Thursday; due unchanged | "infra wants a schema freeze until Thursday" |
+| create | Reply to another customer about CSV encoding | Dev, due 20 Oct, open | "another customer has the CSV encoding problem" / "I'll reply today." |
+| none | T5 Export feature | still 22 Oct | "Export's on track for Wednesday." |
+
+Traps:
+- "The schema draft" is Dev's review (T15), not the Falcon migration (T12).
+- "Devansh" is Dev, said by Priya, not by Dev.
+- Rohan owns the APP-402 review because he said yes; Sana still owns APP-402.
+- Priya's comments close her review (T16), not Rohan's doc (T7): Rohan still has fixes to make.
+- Infra's freeze date is not Falcon's due date.
+- The new CSV reply is new work, not the done T6 reopened. A "similar title" flag is fine.
+- Not items: "Sana's back".
