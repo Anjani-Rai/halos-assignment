@@ -1,0 +1,121 @@
+{
+ "meta": {
+  "model": "qwen3:14b",
+  "seconds": 53.1,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Search latency",
+    "status": "in_progress",
+    "owners": [
+     "Arjun"
+    ],
+    "due_phrase": "today or tomorrow",
+    "ticket": null,
+    "tentative": false,
+    "note": "Uncertainty between query and other issues; expected fix today or tomorrow worst case",
+    "quotes": [
+     "Search latency, still on it. I thought it was the query but I'm not sure anymore, I'll know by tonight. Should have a fix today, maybe tomorrow worst case."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Auth bug from support ticket",
+    "status": "in_progress",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "Dev suspects it's the token refresh issue",
+    "quotes": [
+     "the auth bug from yesterday, the one from the support ticket? I can pick that up. I mean, actually, Dev, you were in that code last week for the refresh thing, right? Do you want it?",
+     "Yeah, I had context. I'll take it. Pretty sure it's the token refresh, same area."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Hermes staging deploy blocked",
+    "status": "blocked",
+    "owners": [
+     "Sana"
+    ],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "Cert expired over the weekend; waiting on infra to resolve",
+    "quotes": [
+     "the Hermes staging deploy is blocked. The cert expired over the weekend, I only found out when the deploy failed this morning. It's with infra, I've pinged them in the channel, no reply yet."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Flaky test in CI",
+    "status": "open",
+    "owners": [],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "Failed twice yesterday with same timeout; discussed but postponed",
+    "quotes": [
+     "Should we do something about the flaky test in CI? It failed twice yesterday, and both times it was the same timeout.",
+     "Hmm. Let's talk about it after, not now."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Export feature",
+    "status": "in_progress",
+    "owners": [
+     "Priya"
+    ],
+    "due_phrase": "Monday",
+    "ticket": null,
+    "tentative": false,
+    "note": "Delayed from Friday to Monday due to auth issue and morning loss",
+    "quotes": [
+     "I'll start on the export feature. We said Friday for that, but honestly with the auth thing moving around and me losing this morning to it, Monday is more realistic."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Onboarding doc is out of date",
+    "status": "open",
+    "owners": [],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "Half the links are dead; needs update",
+    "quotes": [
+     "The onboarding doc is out of date. I noticed when support asked for it, half the links are dead."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "CSV encoding issue",
+    "status": "done",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "Resolved last night with customer reply",
+    "quotes": [
+     "the customer who emailed about the CSV thing, the encoding issue, I replied last night, that's done."
+    ]
+   }
+  ]
+ }
+}

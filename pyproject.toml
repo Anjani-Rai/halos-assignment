@@ -1,0 +1,14 @@
+[project]
+name = "standup-tracker"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.163.2",
+    "openai>=3.55.0",
+    "pydantic>=2.14.3",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]

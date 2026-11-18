@@ -1,0 +1,103 @@
+{
+ "meta": {
+  "model": "@cf/openai/gpt-oss-120b",
+  "seconds": 28.0,
+  "attempts": 1
+ },
+ "reply": {
+  "changes": [
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Search latency",
+    "status": "in_progress",
+    "owners": [
+     "Arjun"
+    ],
+    "due_phrase": "today",
+    "ticket": null,
+    "tentative": false,
+    "note": null,
+    "quotes": [
+     "Search latency, still on it."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Auth bug",
+    "status": "in_progress",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "auth bug from yesterday, the one from the support ticket",
+    "quotes": [
+     "auth bug from yesterday"
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Flaky test in CI",
+    "status": "open",
+    "owners": [],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "flaky test in CI failed twice yesterday, same timeout",
+    "quotes": [
+     "flaky test in CI"
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Export feature",
+    "status": "in_progress",
+    "owners": [
+     "Priya"
+    ],
+    "due_phrase": "Monday",
+    "ticket": null,
+    "tentative": false,
+    "note": "We said Friday for that, but honestly with the auth thing moving around and me losing this morning to it, Monday is more realistic.",
+    "quotes": [
+     "I'll start on the export feature."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "CSV encoding issue",
+    "status": "done",
+    "owners": [
+     "Dev"
+    ],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "encoding issue, replied last night",
+    "quotes": [
+     "the customer who emailed about the CSV thing, the encoding issue, I replied last night, that's done."
+    ]
+   },
+   {
+    "action": "create",
+    "item_id": null,
+    "title": "Onboarding documentation update",
+    "status": "open",
+    "owners": [],
+    "due_phrase": null,
+    "ticket": null,
+    "tentative": false,
+    "note": "Onboarding doc is out of date, half the links are dead",
+    "quotes": [
+     "The onboarding doc is out of date."
+    ]
+   }
+  ]
+ }
+}

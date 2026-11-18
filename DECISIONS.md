@@ -165,6 +165,50 @@ Review and end of week:
 - Skipped: copy as Markdown for Slack, several editors at once, login, undo after approval
   (history is kept).
 
+## 12. Phase 2 build choices
+
+- **Retries come from the `openai` package, not our own loop.** Read in its source
+  (`_base_client.py`, `_should_retry` and the timeout handler): it retries 408, 409, 429, every 5xx,
+  timeouts and dropped connections, waiting 0.5s doubling to 8s with jitter, and honours
+  `Retry-After` up to two minutes. Set to 4 retries. It cannot retry a 200 whose body is not valid
+  for our schema, so `llm.call` retries that once, then fails without touching state.
+- **Timeout per provider:** Ollama 300s (local, slowest), Workers AI 180s, Gemini 120s.
+- **Strict JSON schema, every field required but nullable.** Strict modes reject optional fields;
+  "null" means "not said / unchanged".
+- **Prompt examples never reuse transcript wording.** A first draft quoted "231 is back" and
+  "the Atlas export"; replaced with made-up names (Ana, Ben, APP-512). Otherwise the live test
+  measures how well the prompt copies the answer key, not how well the model reads.
+- **Temperature left at each provider's default.** Tests replay saved replies, so run-to-run
+  variation cannot break them; the live run measures it.
+- **The team list is a constant in code** (`TEAM` in `models.py`). One team, no settings page.
+- **`--system-certs` is used only on this laptop**, whose network fails uv's built-in certificate
+  check. Not written into project config, so reviewers' installs are unchanged.
+
+## 13. Monday run (2026-11-18, one run per provider)
+
+Compared against EXPECTED.md Monday. All quotes were found verbatim in the transcript.
+
+| | gemini-3.8-flash | gpt-oss-120b (Workers AI) | qwen3:14b (Ollama) |
+|---|---|---|---|
+| Time | 34.3s | 28.0s | 53.1s |
+| Items found (of 7) | 7 | 6: missed the Hermes deploy | 7 |
+| Traps (auth handed to Dev, Friday→Monday, no owner on doc and CI) | all passed | all passed | all passed |
+| Field mistakes | auth bug "open" (key says in progress) | thin quotes ("auth bug from yesterday" does not show Dev took it) | due phrase "today or tomorrow", not said; code drops it |
+| Non-items created | none | none | none |
+
+One sample each, so this is not a ranking.
+
+## 14. Scoring the live test: open vs in progress is a minor difference
+
+- **Chosen:** when the model says "open" and the answer key says "in progress" (or the reverse),
+  the live test reports it as a minor difference, not a failure. Wrong owner, wrong due date, a
+  missed item and a duplicate stay failures.
+- **Why:** the answer key draws this line by feel ("I'll take it" is in progress, "I'll look at
+  Dev's PR after this" is open), and the lead fixes it in one click. The failures are the
+  mistakes that mislead the lead.
+- **Rejected:** a prompt rule forcing the key's reading (tunes the prompt to the answer key);
+  changing the key to "open" (moves the line, does not remove it).
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.
