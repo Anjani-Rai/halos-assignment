@@ -12,12 +12,11 @@ from .models import Reply
 class Provider:
     base_url: str
     model: str
-    key_env: str | None
+    key_env: str
     timeout: float  # seconds per request; the SDK also retries timeouts
 
 
 PROVIDERS = {
-    "ollama": Provider("http://127.0.0.1:11434/v1", "qwen3:14b", None, 300),
     "workers_ai": Provider(
         "https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1",
         "@cf/openai/gpt-oss-120b",
@@ -50,7 +49,7 @@ def call(name: str, system: str, user: str) -> Result:
     if name not in PROVIDERS:
         raise LLMError(f"Unknown LLM_PROVIDER {name!r}; use one of {', '.join(PROVIDERS)}")
     p = PROVIDERS[name]
-    key = os.environ.get(p.key_env, "") if p.key_env else "ollama"
+    key = os.environ.get(p.key_env, "")
     if not key:
         raise LLMError(f"{p.key_env} is not set in .env")
     try:

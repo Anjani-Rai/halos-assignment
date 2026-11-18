@@ -93,7 +93,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["run", "week", "heldout"])
     ap.add_argument("transcript", type=Path, nargs="?")
-    ap.add_argument("--provider", default=os.environ.get("LLM_PROVIDER", "ollama"))
+    ap.add_argument("--provider", default=os.environ.get("LLM_PROVIDER", "groq"))
     ap.add_argument("--approve", action="store_true")
     args = ap.parse_args()
     sys.stdout.reconfigure(line_buffering=True)  # progress shows even when sent to a file
