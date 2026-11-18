@@ -2,7 +2,7 @@ import os
 import time
 from dataclasses import dataclass
 
-from openai import OpenAI
+from openai import APIError, OpenAI
 from pydantic import ValidationError
 
 from .models import Reply
@@ -61,12 +61,15 @@ def call(name: str, system: str, user: str) -> Result:
     messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     start = time.monotonic()
     for attempt in (1, 2):  # the SDK cannot retry a 200 with bad JSON, so we retry that once
-        resp = client.chat.completions.create(
-            model=p.model,
-            messages=messages,
-            response_format={"type": "json_schema", "json_schema": _schema()},
-            max_tokens=16000,  # Workers AI stops at 256 without it
-        )
+        try:
+            resp = client.chat.completions.create(
+                model=p.model,
+                messages=messages,
+                response_format={"type": "json_schema", "json_schema": _schema()},
+                max_tokens=16000,  # Workers AI stops at 256 without it
+            )
+        except APIError as e:  # raised once the SDK's own retries are used up
+            raise LLMError(f"{name} request failed: {e}") from e
         choice = resp.choices[0]
         raw = choice.message.content or ""
         try:
