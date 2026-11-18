@@ -674,6 +674,50 @@ removed, with Playwright's Chromium.
   Falcon kickoff doc" share the word "kickoff". The check now uses the later-day rule in section 39,
   and was re-checked against this run's replies with no new model call.
 
+## 41. README and reviewer setup
+
+- **Every README command was run in a fresh clone** (no `.env`, no `data/`) on 2026-11-18. Plain
+  `uv sync`, then `uv run pytest`: 118 passed, 1 skipped. The page with no `data/` shows the command
+  to draft a day. With an empty key the command line stops with "GROQ_API_KEY is not set in .env.
+  Saved lists are unchanged."
+- **The Groq week and held-out meeting were run again from the README's commands:** 135s for the
+  week, 40s for the held-out meeting. Replaying those replies gave 8 of 9 at the end of the week and
+  3 of 6 held-out traps, against 7 of 9 and 4 of 6 for the saved replies. Same prompt and model, so
+  this is run-to-run spread. Not scored by hand; sections 23 and 25 stay the scored numbers.
+- **Second Groq live run failed** (`LIVE=1 LLM_PROVIDER=groq`, 147.5s, end of week 7 of 9). On
+  Wednesday the model created "Send onboarding doc" for Arjun with the quote "I'll send something
+  tonight.", which is the Falcon kickoff doc. The trap check finds items by title words, so it
+  reported "duplicate onboarding doc: T7 ... T11 Send onboarding doc". It is a wrong title, not a
+  repeated create, but it misleads the lead the same way. Left as a failure, test unchanged
+  (section 36); the README reports both live runs.
+- **The command line overwrites the saved replies.** It writes each reply to
+  `tests/replies/<provider>/<day>.json`, the files the saved-reply tests read. Chosen: the README
+  warns and gives `git restore tests/replies`, checked in the clone. Rejected for now: a separate
+  folder for reviewer runs (a code change, outside this phase).
+- **`.env.example` defaults to `LLM_PROVIDER=groq`**, the command line's own default. A value set
+  in the shell wins over `.env` under `uv run --env-file`, checked, so
+  `LLM_PROVIDER=workers_ai` in front of a command still picks Workers AI.
+- **Time spent is counted from the first commit (12:58) to the README.** Rejected: adding up the
+  phase times only, which leaves out the reviews and commits between phases. Time before the first
+  commit is not counted.
+
+## 42. Emptied owners and reopening with a new date
+
+Both were open in section 38.
+- **An update that removes every owner is flagged and stays ticked.** When the model's update sets
+  owners to an empty list on an item that has owners, the flag names who is removed:
+  "Removes the owner (Sana), so nobody owns this." Ticked, like "No owner yet." on a create: the
+  field is questionable, the evidence is there. Rejected: unticked, which hides a real hand-off
+  behind an extra click. A bad name ("infra") still leaves the owners unchanged (section 17), and a
+  lead's own edit is not flagged (section 33).
+- **Reopening a done item with a new date stays ticked, with no flag.** The date must be said
+  inside the change's own quotes (section 27), and the card is labelled "Reopen" with its quote.
+  This matches section 17: untick when the evidence is missing, flag when a field is questionable.
+  Rejected: a flag on every reopen (noise on the normal "231 is back, done tomorrow" case), and
+  unticked like a date change on a closed item that is not reopened (that one suggests the wrong
+  item was matched; a reopen says why). Known risk: a wrong reopen with a real quote goes through
+  on a quick approve.
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.
