@@ -54,11 +54,15 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
             c.owners = None if (c.action == "update" and c.owners and not kept) else kept
 
         if c.due_phrase is not None:
-            if checks.quote_found(c.due_phrase, t.turns):
-                p.due_date = checks.due_date(c.due_phrase, t.day)
-            else:
+            if not checks.quote_found(c.due_phrase, t.turns):
                 p.flags.append(f'Due "{c.due_phrase}" was not said in the meeting, so ignored.')
                 c.due_phrase = None
+            elif not checks.quote_found(c.due_phrase, [("", q) for q in c.quotes]):
+                # said, but by someone else about other work ("tomorrow" from another speaker's item)
+                p.flags.append(f'Due "{c.due_phrase}" is not in the quotes for this change, so ignored.')
+                c.due_phrase = None
+            else:
+                p.due_date = checks.due_date(c.due_phrase, t.day)
 
         if c.ticket is not None and (tk := checks.ticket(c.ticket)) != c.ticket:
             if tk is None:
