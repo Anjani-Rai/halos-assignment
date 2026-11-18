@@ -108,6 +108,63 @@ One sample per model. This is not a ranking; the live run on the five transcript
 ("Halos Engineering Assignment · 3") that fell inside Monday and Thursday were removed.
 `EXPECTED.md` is the hand-written answer key the live test compares against.
 
+## 10. Change shape: create and update only
+
+- **Chosen:** two actions. `create` adds an item. `update` names an existing item id and sets
+  only the fields that changed (status, owners, due phrase, ticket, note). Close, reopen,
+  reassign and re-date are all updates; the review page labels each by the field it changed.
+- **Rejected:** one action per kind (reassign, redate, close, reopen). Easier to read raw, but
+  one sentence often changes two fields ("231 is back, it's the session cookie, I'm on it"
+  reopens and adds a note), which would need two changes to one item, and the model has more
+  labels to get wrong.
+
+## 11. Edge cases (approved 2026-11-18)
+
+Each "build" case gets a test in phase 5.
+
+Running a day:
+- Re-running a day replaces its draft and always starts from the last approved list, so changes
+  are never applied twice.
+- Days run in order. Drafting day N before day N-1 is approved is refused, naming the day to
+  approve first.
+- An approved day cannot be edited once a later day exists. Rejected: re-running every later day
+  automatically (too much for the time box).
+- An empty or "nothing from me" transcript gives no changes; the list carries forward.
+- A line without a `Name:` prefix, or a bad file name or date, is a clear error; nothing is saved.
+
+Model failures:
+- Bad JSON, schema mismatch, cut-off output, 503 or timeout: retry with backoff, then show the
+  error. A failed reply never changes state.
+- An update naming an id that does not exist is dropped and flagged.
+- Two changes to one item in one day are applied in order.
+- A create whose ticket matches an existing item is flagged as a possible duplicate.
+- A create whose title is close to an existing item's (stdlib `difflib`) is flagged as a possible
+  duplicate. Flag only, never auto-merge. Chosen because duplicates are the main bug this
+  design prevents.
+- A change whose quote is not found is shown with a warning and not pre-ticked; the lead opts in.
+  Rejected: pre-ticked, because an unsupported change would then go through on a quick approve.
+- Transcripts are untrusted text. An injected "ignore your instructions" is limited by the code
+  checks in section 3 and by the lead's approval; no extra code.
+
+People and dates:
+- "I"/"me" is the speaker. Only team members and speakers of that transcript can own items;
+  "infra", "support" or "someone" cannot.
+- A rule about a person ("anything of hers rolls to Monday") applies to that person's open items
+  only, never done ones.
+- "Tonight", "after lunch", "this morning" mean the meeting day. "The 20th" or "Oct 22" resolve to
+  that date, across month ends.
+- "Tomorrow" on a Friday is Saturday (literal rule from EXPECTED.md). The spoken phrase is shown
+  next to the date so the lead can correct it. Rejected: skipping weekends, a guess at intent.
+- Skipped: holidays and weekend meetings (no calendar data).
+
+Review and end of week:
+- The lead can edit any field, reject a change, add a missed item and delete an item.
+- The draft survives closing the browser. State is written to a temp file and renamed, so a crash
+  cannot leave a half-written file.
+- Overdue items (due before the meeting day, not done) and unowned items are shown at the top.
+- Skipped: copy as Markdown for Slack, several editors at once, login, undo after approval
+  (history is kept).
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.
