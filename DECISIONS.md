@@ -580,6 +580,100 @@ removed, with Playwright's Chromium.
   its transcript from `tests/heldout`, the seeded Friday with no draft, a day with no draft
   (shows the command), unknown chain 404, cross-site post 403.
 
+## 36. Tests come from the spec, not from the code
+
+- **Chosen:** what a test expects comes only from this file, EXPECTED.md or the brief. Each test
+  names its section in a one-line docstring. To call the code, the tests use only the model fields,
+  function signatures and the page's form field names. A failing test is reported as a finding;
+  its expected value is never changed to match the output.
+- **Why:** a test written by reading the code passes when the code is wrong.
+- **Every edge case marked "build" in section 11 gets a test, not "a few".** The brief asks for "a few
+  tests that check the things you think matter most". Parametrized tables keep it to one file per
+  module; the README names the checks that matter most (matching traps, quote, owner and date checks).
+  Rejected: about 20 tests on model-mistake guards only, which leaves the edge cases approved in
+  section 11 untested.
+- **Readings where the spec is unclear:** an empty transcript loads with no turns (section 11 says it
+  "gives no changes"); "next week, maybe Monday" gives no date (section 17, vague before firm);
+  flags are matched by a word from the spec ("duplicate", "owner", "quote", "ticket") unless the
+  spec quotes the exact text; "shown at the top" means before the "Today's changes" heading; an
+  approved day is frozen once a later day is approved (section 34).
+- Not tested in code: "I/me is the speaker" and "closed items go to the model" (prompt and model,
+  covered by the saved-reply replay), prompt injection (section 11: no extra code), the command
+  text for a day with no draft (no wording in the spec).
+
+## 37. How the tests reach the code
+
+- **Code-rule tests build their input by hand:** a `Reply` written in Python and a transcript file
+  in `tmp_path`, so no result depends on what a model said.
+- **Page tests act like a browser with JavaScript off.** They load the page, read the form's fields
+  from the HTML (stdlib `html.parser`), change one value and post the whole form back. They run on
+  a `-heldout` chain in `tmp_path` that starts from `tests/heldout/base.json`, so the answer key's
+  Friday list is the base and no earlier days need faking. Every "refused" test has a matching
+  test that shows the same kind of post does save.
+- **Model failures use a local fake server.** A stdlib HTTP server stands in for the provider (an
+  extra entry in `PROVIDERS`), so the real retry path runs with no key and no network. The 503 test
+  waits for the SDK's four retries, about 7 seconds.
+- **Packages and config:** `httpx` as a dev dependency (FastAPI's test client needs it), and
+  `pythonpath = ["."]` under `[tool.pytest.ini_options]`, because `tracker` is not an installed
+  package and `uv run pytest` could not import it.
+- **Tests never touch `data/`, `transcripts/` or `tests/heldout|replies/`.** They read the fixtures
+  in git and write only to `tmp_path`. `cli.draft_day` saves each reply under `tests/replies/`, so
+  every test that calls it points `cli.REPLIES` at `tmp_path`. Checked after a full run: no file
+  under those folders was newer than the start of the run.
+
+## 38. What the first test run found
+
+- **A failed request now raises `LLMError`.** A 503 was retried by the SDK as section 12 says (5
+  requests), then reached the caller as `openai.InternalServerError`. The command line catches both
+  error types, so it printed a clean message either way. `llm.call` now turns any `openai.APIError`
+  into `LLMError`, so callers need to know only one error type. Rejected: leaving it as a known limit.
+- **"Owner removed" in section 17 means the owner check dropped a bad name** ("infra"), which is
+  flagged. An update whose owners are `[]` is not flagged; the lead sees it as an owner change.
+  Whether emptying owners should be flagged is an open product question, not built.
+- **The reopen question carries the old date:** "Reopened with the old due date (Tue 14 Oct). Still
+  right?". Section 15 gives its gist; the test checks both parts of the wording.
+- **Not in the spec:** whether reopening a done item with a new date is ticked by default. The test
+  of the new date ticks it by hand.
+
+## 39. Saved-reply and live tests
+
+- **Saved replies assert the four matching traps and no duplicates**, on both week chains: "the
+  Atlas export" creates nothing on Wednesday, "231 is back" reopens PAY-231 with no new item, Rohan
+  becomes owner of Monday's onboarding doc, the Atlas login stays its own item, and no existing item
+  is created again on a later day (EXPECTED.md, Tuesday: "Creating any of them again is the duplicate
+  bug"). Two items created the same day are not a duplicate. Items are found by title words
+  ("export", "login", "retry|APP-402"), matched in a fixed order so "Atlas login (may relate to
+  PAY-231)" is not counted as the auth bug.
+- **The end-of-week list is scored and printed, not asserted:** EXPECTED.md's nine open items, each
+  right, wrong (owner, due or status) or missed, with open vs in progress as minor (section 14).
+  The best-matching item counts; every other open item is listed by title, so made-up items show.
+  Both chains score 7 of 9. Both miss Rohan's review by Priya (section 25). Groq gives the schema
+  review no due date; Workers AI gives Falcon the export's Wednesday.
+- **The held-out meeting is a report only.** Its six traps are printed as pass or miss: Groq 4 of 6,
+  Workers AI 5 of 6, the same misses section 23 scored by hand. Asserting them would make a recorded
+  model miss look like a code failure.
+- **Rejected:** asserting the hand-scored numbers of sections 23 and 25 (any prompt or code change
+  would break them without a bug), and asserting every EXPECTED.md row with known misses marked as
+  expected failures (about 8 per chain, which hides a new miss among the known ones).
+- **The live test runs only with `LIVE=1`** (`LIVE=1 uv run --env-file .env pytest tests/test_live.py`),
+  so a plain `pytest` never calls a provider or needs a key. Groq's free plan returns 429s and one
+  Workers AI day took 412s (section 25). It drafts and approves the week with the provider in
+  `LLM_PROVIDER`, then asserts the same traps and prints the same end-of-week score.
+
+## 40. Live run (2026-11-18, Groq, gpt-oss-120b, final prompt)
+
+- 150s for the week: Monday and Tuesday about 6s each, Wednesday to Friday 42–49s each.
+- All four matching traps passed, with no item created again on a later day. End of week: 8 of 9
+  right; Rohan's review by Priya was missed again (section 25).
+- **A calendar event became an item.** On Wednesday, "Falcon kickoff is Thursday, two pm. Priya and
+  Dev, block the afternoon." became "Block afternoon for Falcon kickoff", with no owner and flagged
+  "No owner yet.". Section 4 says calendar events are not items. The lead removes it by unticking.
+- **Two closes missed:** search stayed in progress (Thursday's "Search is merged"), and Priya's PAY-231
+  review stayed open (Wednesday's "Priya looked at it").
+- The first version of the duplicate check failed this run, because the event and Arjun's "Send
+  Falcon kickoff doc" share the word "kickoff". The check now uses the later-day rule in section 39,
+  and was re-checked against this run's replies with no new model call.
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.
