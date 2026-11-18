@@ -432,6 +432,35 @@ What this shows about our checks:
   review rule turned most reviews into items (3 of 4 on both gpt-oss runs, against none in the
   first week). Section 18 counted misses in another unit, so its numbers are not compared here.
 
+## 26. Ollama removed
+
+- **Chosen:** two providers, Workers AI and Groq. `ollama` is gone from `tracker/llm.py`, its saved
+  replies are deleted (still in git history at `06d43a4`), and the command line defaults to Groq
+  when `LLM_PROVIDER` is not set.
+- **Why:** in the clean week (section 25) qwen3:14b took 87s–134s per day and got 18 of 33 changes
+  right, against 25 for both gpt-oss-120b runs. On the held-out meeting it got 2 of 10, against 4
+  and 5.
+- **Cost:** both providers now run the same model, gpt-oss-120b, so a run compares hosts, not
+  models. Lost too: the no-key, data-stays-on-the-laptop option from section 7.
+- **Rejected:** keeping Ollama as an optional local provider. Every run would still need its
+  replies saved and scored, at 2–3 minutes a day.
+
+## 27. A due phrase must be in the change's own quotes
+
+- **Chosen:** a due phrase is kept only if it was said in the meeting and appears inside one of
+  the change's quotes. Otherwise it is dropped and flagged ("is not in the quotes for this
+  change"); the change stays ticked, like the other due-phrase flags (section 17).
+- **Why:** checking the whole meeting let Ollama reopen PAY-231 with "tomorrow" from Sana's line
+  about APP-402 (section 25).
+- **Measured before switching it on:** replayed every saved reply (both providers' weeks and
+  held-out runs, plus Ollama's from git). Of 40 due phrases that passed the old check, 1 was
+  outside its quotes, the wrong PAY-231 one. No correct date was lost, so no saved list changes.
+- **Rejected:** matching the due phrase to the owner's own lines. A date can come from someone else
+  ("Arjun: Fine, Monday." agrees Priya's export date), and the quotes are what the lead sees next
+  to the date, so tying the two together keeps the evidence in view.
+- **Known limit:** a model that quotes the wrong line can still bring in a wrong date; the lead
+  sees the quote next to it.
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.
