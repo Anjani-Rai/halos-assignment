@@ -67,6 +67,7 @@ TICK_CASES = {
     "due phrase not said": (change(item_id="T3", due_phrase="Friday", quotes=[WEDNESDAY]), True, True, None),
     "reopened with the old date": (change(item_id="T2", status="in_progress", quotes=[BACK]), True, True,
                                    "still right?"),
+    "owners emptied": (change(item_id="T4", owners=[], quotes=[SANA]), True, True, "nobody owns this"),
 }
 
 
@@ -159,13 +160,12 @@ def test_reopen_keeps_due(t):
 
 
 def test_reopen_with_new_date(t):
-    """§15: a new date said in the meeting replaces the old one, with no 'Still right?' question."""
+    """§15, §42: a new date said in the meeting replaces the old one; ticked, with no flag."""
     items = base()
     p = one(change(item_id="T2", status="in_progress", due_phrase="tomorrow",
                    quotes=[BACK, "Should be done tomorrow"]), t, items)
-    assert not has(p, "still right?")
+    assert (p.selected, p.flags) == (True, [])
     assert p.due_date == date(2025, 10, 17)
-    p.selected = True  # whether this reopen is ticked by default is not in the spec
     t2 = next(i for i in apply(items, [p], THU) if i.id == "T2")
     assert t2.due_date == date(2025, 10, 17)
 
