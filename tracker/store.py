@@ -79,7 +79,14 @@ class Store:
             raise StoreError(f"Approve {waiting[0]} first; {day} starts from its list.")
 
     def seed(self, day: date, items: list[Item]) -> None:
-        """Start a chain from a given list, saved as if approved on `day`."""
+        """Start a chain from a given list, saved as if approved on `day`. Never replaces a day the
+        lead approved, or a seed that later days were built on."""
+        a = self.approved(day)
+        if a and a.items == items:
+            return
+        if a and a.proposed:
+            raise StoreError(f"{day} was approved by the lead, so it is not replaced by a seed.")
+        self.check_can_change(day)
         _write(self._path(day, "approved"), Approved(day=day, items=items, proposed=[]))
 
     def save_draft(self, draft: Draft) -> None:

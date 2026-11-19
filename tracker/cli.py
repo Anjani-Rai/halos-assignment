@@ -4,6 +4,8 @@ uv run --env-file .env python -m tracker.cli run transcripts/2025-10-14.txt --pr
 uv run --env-file .env python -m tracker.cli week --provider groq --approve
 uv run --env-file .env python -m tracker.cli heldout --provider groq --approve
 --approve accepts every ticked change as is; real use goes through the review page.
+Each model reply is kept next to its draft in data/; --save-replies also writes it to tests/replies,
+which the saved-reply tests read.
 """
 
 import argparse
@@ -22,7 +24,7 @@ from .models import CLOSED, Item, Reply
 from .store import Draft, Store
 from .transcript import load
 
-REPLIES = Path("tests/replies")
+REPLIES: Path | None = None  # set by --save-replies to tests/replies
 HELDOUT = Path("tests/heldout")
 
 
@@ -32,10 +34,10 @@ def draft_day(path: Path, provider: str, store: Store) -> Draft:
     base_day, base = store.base_for(t.day)
     print(f"\n.. {t.day:%a %d %b}: asking {provider}")
     r = llm.call(provider, prompt.SYSTEM, prompt.user_message(t, base))
-    out = REPLIES / store.dir.name / f"{t.day}.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
     meta = {"model": r.model, "seconds": r.seconds, "attempts": r.attempts}
-    out.write_text(json.dumps({"meta": meta, "reply": json.loads(r.raw)}, indent=1) + "\n")
+    for out in [store.dir / f"{t.day}.reply.json", *([REPLIES / store.dir.name / f"{t.day}.json"] if REPLIES else [])]:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps({"meta": meta, "reply": json.loads(r.raw)}, indent=1) + "\n")
     d = Draft(day=t.day, provider=provider, model=r.model, base_day=base_day, base=base,
               proposed=review(Reply.model_validate_json(r.raw), base, t))
     store.save_draft(d)
@@ -98,7 +100,13 @@ def main() -> None:
     ap.add_argument("transcript", type=Path, nargs="?")
     ap.add_argument("--provider", default=os.environ.get("LLM_PROVIDER", "groq"))
     ap.add_argument("--approve", action="store_true")
+    ap.add_argument("--save-replies", action="store_true", help="also write replies to tests/replies")
     args = ap.parse_args()
+    if args.cmd == "run" and args.transcript is None:
+        ap.error("run needs a transcript file, like transcripts/2025-10-13.txt")
+    global REPLIES
+    if args.save_replies:
+        REPLIES = Path("tests/replies")
     sys.stdout.reconfigure(line_buffering=True)  # progress shows even when sent to a file
     # The SDK logs each retry ("Retrying request in 1.8 seconds (retry 2 of 4)") at INFO.
     logging.basicConfig(format="   %(message)s", stream=sys.stdout)

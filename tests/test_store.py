@@ -118,3 +118,18 @@ def test_approve_keeps_lead_edits(chain):
     kept = s.approved(MON).proposed
     assert kept[0].original is not None and kept[0].original.change.owners == ["Priya"]
     assert kept[1].by_lead
+
+
+def test_seed_never_replaces_an_approved_day(chain):
+    """Review fix 10: a seed does not replace a day the lead approved, nor a seed later days built on."""
+    s, tr = chain
+    monday(s, tr)
+    with pytest.raises(StoreError):
+        s.seed(MON, [])
+    s2 = Store("seeded", root=s.dir.parent, transcripts=tr)
+    s2.seed(MON, [])
+    s2.seed(MON, [])  # same list again: allowed, nothing changes
+    s2.save_draft(draft(s2, tr, TUE))
+    s2.approve(TUE)
+    with pytest.raises(StoreError):
+        s2.seed(MON, s.approved(MON).items)

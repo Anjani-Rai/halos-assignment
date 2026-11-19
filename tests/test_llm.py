@@ -87,7 +87,6 @@ def test_failed_reply_keeps_state(tmp_path, monkeypatch):
     assert s.draft(MON).model_dump() == first.model_dump()
 
 
-
 def test_prompt_has_glossary(tmp_path):
     """Review fix 5: the brief's code names reach the model, so "admin dashboard" can match an Atlas item."""
     from tracker import prompt
@@ -95,6 +94,29 @@ def test_prompt_has_glossary(tmp_path):
     path.write_text("Arjun: Hi.\n")
     msg = prompt.user_message(load(path), [])
     assert "Atlas is the admin dashboard" in msg and "Hermes is the notifications service" in msg
+
+
+def test_reply_saved_in_data_not_tests(tmp_path, monkeypatch):
+    """Review fix 10: a normal run keeps the reply next to its draft and leaves tests/replies alone."""
+    tr = tmp_path / "tr"
+    tr.mkdir()
+    path = tr / f"{MON.isoformat()}.txt"
+    path.write_text("Priya: I'll start on the export feature.\n")
+    raw = reply(change("create", title="Export feature", owners=["Priya"], quotes=["I'll start on the export feature."]))
+    monkeypatch.setattr(llm, "call", lambda *a: llm.Result(raw, raw.model_dump_json(), "groq", "m", 1.0, 1))
+    monkeypatch.setattr(cli, "REPLIES", None)
+    s = Store("c", root=tmp_path / "data", transcripts=tr)
+    cli.draft_day(path, "groq", s)
+    assert (s.dir / f"{MON}.reply.json").exists()
+    assert not (tmp_path / "tests").exists()
+
+
+def test_run_without_file_is_a_usage_error(monkeypatch, capsys):
+    """Review fix 10: `cli run` with no transcript gives a usage message, not a crash."""
+    monkeypatch.setattr("sys.argv", ["tracker.cli", "run"])
+    with pytest.raises(SystemExit) as e:
+        cli.main()
+    assert e.value.code == 2 and "run needs a transcript file" in capsys.readouterr().err
 
 
 def test_old_closed_items_left_out_of_prompt(tmp_path):
@@ -109,4 +131,3 @@ def test_old_closed_items_left_out_of_prompt(tmp_path):
              item("T2", "Recent close", status="done", created_on=day - timedelta(days=1)),
              item("T3", "Old but open", created_on=day - timedelta(days=30))]
     assert [i.id for i in prompt.sent(items, day)] == ["T2", "T3"]
-
