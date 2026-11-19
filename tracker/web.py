@@ -17,7 +17,7 @@ from .apply import apply, edited, fmt_due, next_id
 from .cli import HELDOUT, open_tree
 from .models import CLOSED, Change, Item, Proposed, Status
 from .store import Draft, Store, StoreError
-from .transcript import Transcript, load
+from .transcript import Transcript, TranscriptError, load
 
 DATA = Path("data")
 STATUSES = get_args(Status)
@@ -52,9 +52,9 @@ def preview(d: Draft) -> tuple[list[tuple[Proposed, Item | None, Item | None]], 
     items, rows = d.base, []
     for p in d.proposed:
         before, after = next((i for i in items if i.id == p.item_id), None), None
-        if p.applicable:  # an applicable update always names a base item, so apply finds it
+        if p.applicable:  # None when it updates an item created today whose create is unticked
             with_it = apply(items, [p.model_copy(update={"selected": True})], d.day)
-            after = next(i for i in with_it if i.id == p.item_id)
+            after = next((i for i in with_it if i.id == p.item_id), None)
             if p.selected:
                 items = with_it
         rows.append((p, before, after))
@@ -91,8 +91,15 @@ def owners_from(text: str, t: Transcript | None) -> list[str]:
     return out
 
 
+def unread_date(item_id: str | None, due: str, d: Draft, warnings: list[str]) -> None:
+    """Warn when a typed due date has no day the code can read, so it would never show as overdue."""
+    if due and checks.due_date(due, d.day) is None and not checks.vague(due):
+        warnings.append(f'{item_id}: "{due}" has no date the tracker can read, so it will not show as '
+                        'overdue. Use a weekday, "Oct 22" or 2025-10-22, or a timeframe like "next week".')
+
+
 def set_fields(p: Proposed, shown: Item, form, n: int, d: Draft, t: Transcript | None,
-               errors: list[str]) -> list[tuple[str, object]]:
+               errors: list[str], warnings: list[str]) -> list[tuple[str, object]]:
     """Card n's form shows the item as it will be after the change. Each value the lead changed
     from what was shown becomes a change field. Returns (item field, wanted value) to check."""
     c, wanted = p.change, []
@@ -115,6 +122,7 @@ def set_fields(p: Proposed, shown: Item, form, n: int, d: Draft, t: Transcript |
     if (due := got("due")) != (shown.due_phrase or ""):
         c.due_phrase, p.due_date = (due, checks.due_date(due, d.day)) if due else (None, None)
         c.clear_due = True if not due and c.action == "update" else None  # blank means no due date
+        unread_date(p.item_id, due, d, warnings)
         wanted.append(("due_phrase", due or None))
     if (raw := got("ticket")) != (shown.ticket or ""):
         tk = checks.ticket(raw) if raw else None
@@ -134,7 +142,7 @@ def set_fields(p: Proposed, shown: Item, form, n: int, d: Draft, t: Transcript |
     return wanted
 
 
-def save_edits(d: Draft, form, t: Transcript | None, errors: list[str]) -> None:
+def save_edits(d: Draft, form, t: Transcript | None, errors: list[str], warnings: list[str]) -> None:
     rows, _ = preview(d)  # what the form showed, so each value is compared with what the lead saw
     checks_due = []
     for n, (p, _, shown) in enumerate(rows):
@@ -143,7 +151,7 @@ def save_edits(d: Draft, form, t: Transcript | None, errors: list[str]) -> None:
         old = p.model_copy(deep=True)
         p.selected = f"tick{n}" in form
         if f"title{n}" in form:
-            checks_due.append((n, set_fields(p, shown, form, n, d, t, errors)))
+            checks_due.append((n, set_fields(p, shown, form, n, d, t, errors, warnings)))
         if not p.by_lead and p.original is None and p.model_dump(exclude={"original"}) != old.model_dump(exclude={"original"}):
             p.original = old
     rows, _ = preview(d)
@@ -155,7 +163,7 @@ def save_edits(d: Draft, form, t: Transcript | None, errors: list[str]) -> None:
                               "ticket or review link set on an earlier day is not supported.")
 
 
-def add_item(d: Draft, form, t: Transcript | None, errors: list[str]) -> int | None:
+def add_item(d: Draft, form, t: Transcript | None, errors: list[str], warnings: list[str]) -> int | None:
     title = (form.get("new_title") or "").strip()
     if not title:
         errors.append("A new item needs a title.")
@@ -175,36 +183,64 @@ def add_item(d: Draft, form, t: Transcript | None, errors: list[str]) -> int | N
               note=(form.get("new_note") or "").strip() or None)
     d.proposed.append(Proposed(change=c, item_id=f"T{next_id([*d.base, *created])}",
                                due_date=checks.due_date(due, d.day) if due else None, by_lead=True))
+    unread_date(d.proposed[-1].item_id, due, d, warnings)
     return len(d.proposed) - 1
 
 
-def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=None, focus=None):
-    d, a = s.draft(day), s.approved(day)
+def close_too(d: Draft, arg: str, msgs: list[str]) -> int | None:
+    """The lead accepts a flag's suggestion: close item `id` too, with card n's quotes as evidence."""
+    target, _, n = arg.partition(":")
+    if not n.isdigit() or int(n) >= len(d.proposed) or target not in d.proposed[int(n)].suggest_close \
+            or target not in {i.id for i in d.base}:
+        raise StoreError("That close button does not match this draft. Reload the page and try again.")
+    if next(i for i in preview(d)[1] if i.id == target).status in CLOSED:
+        msgs.append(f"{target} is already closed on this list.")
+        return None
+    src = d.proposed[int(n)]
+    d.proposed.append(Proposed(change=blank("update", item_id=target, status="done", quotes=list(src.change.quotes)),
+                               item_id=target, by_lead=True))
+    return len(d.proposed) - 1
+
+
+def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=None, focus=None, warnings=()):
+    d, a, errors = s.draft(day), s.approved(day), list(errors)
     try:
         s.check_can_change(day)
         locked = None
     except StoreError as e:
         locked = str(e)
     path = s.transcripts / f"{day}.txt"
-    t = load(path) if path.exists() else None
+    try:
+        t = load(path) if path.exists() else None
+    except TranscriptError as e:
+        t = None
+        errors.append(f"{e}. Fix the transcript and reload.")
     cards = []
     if d:
         rows, final = preview(d)
         for n, (p, b, af) in enumerate(rows):
             quotes = [(next((sp for sp, text in t.turns if checks.quote_found(q, [(sp, text)])), None) if t else None, q)
                       for q in p.change.quotes]
-            cards.append(dict(n=n, p=p, before=b, after=af, labels=labels(p, b, af), quotes=quotes,
+            still_open = {i.id for i in final if i.status not in CLOSED}
+            offers = [(x, x in still_open) for x in p.suggest_close] if p.selected and p.applicable else []
+            cards.append(dict(n=n, p=p, before=b, after=af, labels=labels(p, b, af), quotes=quotes, offers=offers,
                               what=af.history[-1].what if af and p.change.action == "update" else None,
                               edits=sorted({WORDS[f] for f in edited(p)})))
     else:
         final = a.items if a else []
+    unused = set()  # transcript lines no change quotes; short ones ("Okay.") are not worth a tag
+    if d and t:
+        used = {n for p in d.proposed for q in p.change.quotes for n in checks.turns_with(q, t.turns)}
+        unused = {n for n, (_, text) in enumerate(t.turns) if n not in used and len(text.split()) >= 4}
+    flagged = [c for c in cards if c["p"].selected and c["p"].applicable and c["p"].flags and not c["edits"]]
     provider = chain.removesuffix("-heldout")
     run = (f"uv run --env-file .env python -m tracker.cli heldout --provider {provider}" if provider != chain
            else f"uv run --env-file .env python -m tracker.cli run {path} --provider {chain}")
     live = [i for i in final if i.status not in CLOSED]
     return pages.TemplateResponse(request, "day.html", dict(
-        chain=chain, day=day, d=d, a=a, t=t, locked=locked, errors=list(errors), msg=msg, focus=focus,
-        cards=cards, tree=open_tree(final), closed=[i for i in final if i.status in CLOSED],
+        chain=chain, day=day, d=d, a=a, t=t, locked=locked, errors=errors, msg=msg, focus=focus,
+        warnings=list(warnings),
+        cards=cards, flagged=flagged, unused=unused, tree=open_tree(final), closed=[i for i in final if i.status in CLOSED],
         overdue=[i for i in live if i.due_date and i.due_date < day], unowned=[i for i in live if not i.owners],
         base_ids={i.id for i in d.base} if d else set(), base=d.base if d else [], run=run,
         changed_since=bool(a and d and a.proposed != d.proposed),
@@ -233,19 +269,23 @@ async def act(request: Request, chain: str, day: date):
     if (o := request.headers.get("origin")) and o != f"http://{request.headers.get('host')}":
         raise HTTPException(403, "Posts from other sites are refused.")
     s, form = store_for(chain), await request.form()
-    do, errors, msg, focus = form.get("do") or "save", [], None, None
+    do, errors, warnings, msg, focus = form.get("do") or "save", [], [], None, None
+    msgs: list[str] = []
     d = s.draft(day)
     if d is None:
         raise HTTPException(404, f"No draft for {day}.")
-    t = load(s.transcripts / f"{day}.txt")
+    try:
+        t = load(s.transcripts / f"{day}.txt")
+    except TranscriptError:
+        return render(request, s, chain, day)  # nothing saved; the page shows the transcript error
     try:
         s.check_can_change(day)
         if do == "add":
-            focus = add_item(d, form, t, errors)
+            focus = add_item(d, form, t, errors, warnings)
         else:
             if form.get("n") != str(len(d.proposed)):
                 raise StoreError("This page is out of date (the draft changed). Reload it and try again.")
-            save_edits(d, form, t, errors)
+            save_edits(d, form, t, errors, warnings)
             kind, _, arg = do.partition(":")
             if kind in ("change", "drop"):
                 if arg not in {i.id for i in d.base}:
@@ -253,6 +293,8 @@ async def act(request: Request, chain: str, day: date):
                 d.proposed.append(Proposed(change=blank("update", item_id=arg, status="dropped" if kind == "drop" else None),
                                            item_id=arg, by_lead=True))
                 focus = len(d.proposed) - 1
+            elif kind == "close":
+                focus = close_too(d, arg, msgs)
             elif kind == "remove" and arg.isdigit() and int(arg) < len(d.proposed) and d.proposed[int(arg)].by_lead:
                 d.proposed.pop(int(arg))
         s.save_draft(d)
@@ -264,7 +306,8 @@ async def act(request: Request, chain: str, day: date):
                 msg = f"Approved {day:%a %d %b}: {sum(i.status not in CLOSED for i in done.items)} open items."
     except StoreError as e:
         errors.append(str(e))
-    return render(request, s, chain, day, errors, msg, focus)
+    msg = msg or (" ".join(msgs) or None)
+    return render(request, s, chain, day, errors, msg, focus, warnings)
 
 
 if __name__ == "__main__":

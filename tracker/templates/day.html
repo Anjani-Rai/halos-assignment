@@ -11,6 +11,7 @@
 <div class="banners">
   {% for e in errors if e != locked %}<p class="banner err">{{ e }}</p>{% endfor %}
   {% if msg %}<p class="banner ok">{{ msg }}</p>{% endif %}
+  {% for w in warnings %}<p class="banner warn">{{ w }}</p>{% endfor %}
   {% if locked %}<p class="banner warn">{{ locked }} Nothing on this page can be changed.</p>
   {% elif stale %}<p class="banner warn">The list this draft started from was approved again since, so approving is refused. Make a new draft: <code>{{ run }}</code></p>
   {% elif changed_since %}<p class="banner warn">You changed this day after approving it. Approve again to apply the changes.</p>
@@ -59,6 +60,8 @@
   {% elif c.what %}<p class="what">{{ c.what|replace("_", " ") }}</p>{% endif %}
   {% for sp, q in c.quotes %}<blockquote>“{{ q }}”{% if sp %} <cite>— {{ sp }}</cite>{% endif %}</blockquote>{% endfor %}
   {% if p.flags %}<ul class="flags">{% for f in p.flags %}<li>{{ f }}</li>{% endfor %}</ul>
+    {% for x, still_open in c.offers %}{% if still_open %}<button name="do" value="close:{{ x }}:{{ c.n }}">Close {{ x }} too</button>
+    {% else %}<p class="hint">{{ x }} will be closed.</p>{% endif %}{% endfor %}
     {% if c.edits %}<p class="hint">These checks were run on the model's version, before your edits.</p>{% endif %}{% endif %}
   {% if c.after %}{% set i = c.after %}
   <details id="edit{{ c.n }}"{% if focus == c.n %} open{% endif %}><summary>Edit</summary>
@@ -114,6 +117,13 @@
 {% if d %}</fieldset>{% endif %}
 </form>
 
+{% if t %}
+<details id="transcript"><summary>Transcript ({{ t.turns|length }} lines{% if unused %}, {{ unused|length }} not used by any change{% endif %})</summary>
+  {% if unused %}<p class="hint">Lines tagged "not used" are not quoted by any change. If one needs a change, use Change on the list above or add a missed item below.</p>{% endif %}
+  <ol class="transcript">{% for sp, text in t.turns %}<li><b>{{ sp }}:</b> {{ text }}{% if loop.index0 in unused %} <span class="tag">not used</span>{% endif %}</li>{% endfor %}</ol>
+</details>
+{% endif %}
+
 {% if d %}
 <form id="add" method="post">
 <fieldset {% if locked %}disabled{% endif %}>
@@ -134,13 +144,10 @@
 </form>
 
 <h2>Approve</h2>
+{% if flagged %}<p class="flags">Ticked with a flag you have not acted on, applied as shown:
+  {% for c in flagged %}<a href="#card{{ c.n }}">{{ c.p.item_id }}</a>{{ ', ' if not loop.last }}{% endfor %}.</p>{% endif %}
 <p><button class="primary" form="review" name="do" value="approve">Approve {{ day.strftime('%a %d %b') }}</button>
   <span class="hint">Applies the ticked changes to {{ d.base_day.strftime('%a %d %b') ~ "'s list" if d.base_day else 'an empty list' }} and saves the result.</span></p>
 {% endif %}
 
-{% if t %}
-<details id="transcript"><summary>Transcript ({{ t.turns|length }} lines)</summary>
-  <ol class="transcript">{% for sp, text in t.turns %}<li><b>{{ sp }}:</b> {{ text }}</li>{% endfor %}</ol>
-</details>
-{% endif %}
 {% endblock %}

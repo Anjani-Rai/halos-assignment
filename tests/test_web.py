@@ -285,3 +285,116 @@ def test_removed_ticket_named(site):
     clean, _ = edit(client, "T13", note="checked")
     r, _ = edit(client, "T13", ticket="")
     assert ticket_words(r.text) > ticket_words(clean.text)
+
+
+def test_iso_due_date_typed(site):
+    """Review fix 9: a due date typed as 2025-10-22 is read as that day."""
+    client, s = site
+    _, n = edit(client, "T11", due="2025-10-22")
+    assert s.draft(HELDOUT_DAY).proposed[n].due_date == date(2025, 10, 22)
+
+
+def test_unreadable_due_warns_but_approves(site):
+    """Review fix 9: a typed date the code cannot read is kept as words with a warning; approving still works."""
+    client, s = site
+    assert "will not show as overdue" not in page_text(edit(client, "T11", due="next week")[0].text)
+    r, _ = edit(client, "T11", due="22/10")
+    assert "will not show as overdue" in page_text(r.text)
+    approve(client)
+    assert (approved_item(s, "T11").due_phrase, approved_item(s, "T11").due_date) == ("22/10", None)
+
+
+DONE_QUOTE = "I'll fix those and then it's done"
+
+
+@pytest.fixture
+def closing(site):
+    """A draft whose only change closes T7 while T16, Priya's review of it, is still open."""
+    client, s = site
+    d = s.draft(HELDOUT_DAY)
+    t = load(HELDOUT / f"{HELDOUT_DAY.isoformat()}.txt")
+    d.proposed = review(reply(change(item_id="T7", status="done", quotes=[DONE_QUOTE])), d.base, t)
+    s.save_draft(d)
+    return client, s
+
+
+def test_close_too_button(closing):
+    """Review fix 15: the flag offers one click; it adds the lead's own close with the same quote."""
+    client, s = closing
+    html = client.get(URL).text
+    assert "Close T16 too" in page_text(html)
+    r = post(client, form_fields(html, "review"), "close:T16:0")
+    added = s.draft(HELDOUT_DAY).proposed[-1]
+    assert (added.by_lead, added.item_id, added.change.status, added.change.quotes) == (True, "T16", "done", [DONE_QUOTE])
+    assert "Close T16 too" not in page_text(r.text) and "T16 will be closed." in page_text(r.text)
+    approve(client)
+    t16 = approved_item(s, "T16")
+    assert t16.status == "done" and t16.history[-1].quotes == [DONE_QUOTE]
+
+
+def test_close_too_twice_adds_once(closing):
+    """Review fix 15: a double submit is refused as out of date; a click from the reloaded page says it is
+    already closed. Either way the close is added once."""
+    client, s = closing
+    data = form_fields(client.get(URL).text, "review")
+    post(client, data, "close:T16:0")
+    double = post(client, data, "close:T16:0")
+    again = post(client, form_fields(client.get(URL).text, "review"), "close:T16:0")
+    assert sum(p.item_id == "T16" for p in s.draft(HELDOUT_DAY).proposed) == 1
+    assert "out of date" in page_text(double.text) and "already closed" in page_text(again.text)
+
+
+def test_close_too_only_for_suggested_items(closing):
+    """Review fix 15: the button value is checked; a close the flag did not suggest is refused."""
+    client, s = closing
+    r = post(client, form_fields(client.get(URL).text, "review"), "close:T5:0")
+    assert len(s.draft(HELDOUT_DAY).proposed) == 1 and "does not match this draft" in page_text(r.text)
+
+
+def _approve_section(html: str) -> str:
+    return " ".join(page_text(html[html.index("<h2>Approve</h2>"):html.index("<button class=\"primary\"")]).split())
+
+
+def test_flagged_ticked_listed_by_approve(closing):
+    """§46: a ticked change with a flag is named next to Approve until the lead unticks or edits it."""
+    client, _ = closing
+    html = client.get(URL).text
+    assert _approve_section(html).endswith("applied as shown: T7 .")
+    data = form_fields(html, "review")
+    data.pop("tick0")
+    assert "applied as shown" not in _approve_section(post(client, data).text)
+    data["tick0"] = "on"
+    post(client, data)
+    r, _ = edit(client, "T7", note="Priya's review is done too")
+    assert "applied as shown" not in _approve_section(r.text)
+
+
+def test_bad_transcript_shown_on_page(tmp_path, monkeypatch):
+    """§46: a transcript the parser refuses is shown as an error on the page, not a server error."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(web, "DATA", tmp_path / "data")
+    (tmp_path / "data" / "b").mkdir(parents=True)
+    (tmp_path / "transcripts").mkdir()
+    (tmp_path / "transcripts" / f"{MON.isoformat()}.txt").write_text("Arjun: hi\nvikram: I'll take APP-415\n")
+    r = TestClient(web.app).get(f"/b/{MON.isoformat()}")
+    assert r.status_code == 200 and "line 2" in page_text(r.text)
+
+
+def test_close_too_hidden_when_unticked(closing):
+    """Review fix 15: unticking the flagged change hides its suggestion."""
+    client, _ = closing
+    data = form_fields(client.get(URL).text, "review")
+    data.pop("tick0")
+    assert "Close T16 too" not in page_text(post(client, data).text)
+
+
+def test_transcript_tags_lines_no_change_used(site):
+    """Review fix 18: the transcript, above "Add a missed item", tags the lines no change quotes, and counts them."""
+    client, _ = site
+    html = client.get(URL).text
+    assert html.index('id="transcript"') < html.index("Add a missed item")
+    text = page_text(html[html.index('id="transcript"'):html.index("Add a missed item")])
+    assert "not used by any change" in text
+    used = "Sure, I'll do it after standup."  # quoted by the Rohan review in the fixture
+    line = text[text.index(used):text.index(used) + len(used) + 12]
+    assert "not used" not in line
