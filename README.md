@@ -21,7 +21,7 @@ uv run pytest
 uv run python -m tracker.web
 ```
 
-`uv run pytest` gives 119 passed and 1 skipped in about 10 seconds. The skipped one is the live
+`uv run pytest` gives 187 passed and 1 skipped in about 10 seconds. The skipped one is the live
 test, which calls a real model. The page is at http://127.0.0.1:8000. Until a day has been
 drafted it shows "No data/ folder yet" and the command to draft one.
 
@@ -50,7 +50,11 @@ draft the next day with the next transcript. Days must be drafted and approved i
 checked, and once took 412 seconds on Workers AI ([§25](DECISIONS.md#25-clean-week-rerun-2026-11-18-final-prompt-one-run-per-provider)).
 
 A new transcript goes in `transcripts/`, named by its meeting date (`2025-10-20.txt`), with one
-`Name: what they said` line per speaker turn.
+`Name: what they said` line per speaker turn. A turn may run over several lines, and a leading
+timestamp (`[00:01:02]`) or byte-order mark is ignored. A line opening with a label or ticket
+(`Update:`, `PAY-231:`) belongs to the turn above. A line opening with a lowercase name that is not
+on the team (`vikram:`) is refused, naming the line, so no words are credited to the wrong person
+([§46](DECISIONS.md#46-review-fixes-batch-4-speakers-vague-titles-flagged-changes-at-approve)).
 
 To run the whole week, or the held-out meeting, without the page:
 
@@ -59,12 +63,12 @@ uv run --env-file .env python -m tracker.cli week --provider groq --approve
 uv run --env-file .env python -m tracker.cli heldout --provider groq --approve
 ```
 
-`--approve` accepts every ticked change as it is. It exists for scripted runs. Real use goes
-through the page.
+`--approve` accepts every ticked change as it is, flagged ones included. It exists for scripted
+runs. Real use goes through the page, which lists the ticked changes with flags next to Approve.
 
-**These commands overwrite the saved replies.** Each model reply is saved to
-`tests/replies/<provider>/<day>.json`, which is where the saved-reply tests read from. After a run,
-`git restore tests/replies` puts the saved ones back.
+Each model reply is saved next to its draft, as `data/<provider>/<day>.reply.json`. Add
+`--save-replies` to also write it to `tests/replies/<provider>/<day>.json`, which is where the
+saved-reply tests read from; without it the saved ones are left alone.
 
 The live test sends the week to a real model and checks the same traps as the saved-reply tests:
 
@@ -164,7 +168,7 @@ model miss into a test failure
 
 ## What was run, and the results
 
-**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 119 passed, 1 skipped.
+**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 187 passed, 1 skipped.
 End of week, both providers get 7 of the answer key's 9 open items right. Held-out traps: Groq 4 of
 6, Workers AI 5 of 6.
 
@@ -182,6 +186,15 @@ End of week, both providers get 7 of the answer key's 9 open items right. Held-o
   model titled Arjun's "I'll send something tonight" (the Falcon kickoff doc) "Send onboarding
   doc", so the check read it as the onboarding doc created a second time
   ([§41](DECISIONS.md#41-readme-and-reviewer-setup)). The lead would see a wrongly titled item.
+- **Live test on Groq after the review fixes:** one run failed the same way as the second run
+  above (138 seconds). After the title rule, three runs in a row passed (167, 244 and 172
+  seconds; 8, 7 and 8 of 9 open items right). The Falcon kickoff doc was never mistitled, but all
+  three titled it "Send something tonight", which the code now flags
+  ([§45](DECISIONS.md#45-live-runs-after-the-review-fixes-and-four-more-checks)).
+- **Live test on Workers AI, first time:** three runs (208, 209 and 397 seconds; 5, 7 and 7 of 9
+  open items right). Run 1 titled the kickoff doc "Send onboarding doc" again, and run 2 never
+  reopened PAY-231; run 3 passed. Groq's free daily token limit stopped three Groq runs the same
+  day [§47](DECISIONS.md#47-workers-ai-live-runs-same-day-updates-and-the-transcript-as-a-checklist).
 - **The commands in this README, run in a fresh clone:** the Groq week took 135 seconds and the
   held-out meeting 40 seconds; the SDK retried each day from Wednesday on, waiting up to 36
   seconds.
@@ -193,12 +206,16 @@ End of week, both providers get 7 of the answer key's 9 open items right. Held-o
 Mistakes the model still makes
 ([§23](DECISIONS.md#23-held-out-first-score-2026-11-18-before-any-date-rule-change),
 [§25](DECISIONS.md#25-clean-week-rerun-2026-11-18-final-prompt-one-run-per-provider)): infra's
-"tomorrow morning" for the cert is given to Sana's deploy, or made into an item; "I'll send it to
-Priya to check" becomes a note instead of a review; updates to an item named indirectly ("the
-schema draft") are missed or go to the wrong item.
+"tomorrow morning" for the cert is given to Sana's deploy, or made into an item; updates to an
+item named indirectly ("the schema draft") are missed or go to the wrong item. In the three live
+runs after the review fixes ([§45](DECISIONS.md#45-live-runs-after-the-review-fixes-and-four-more-checks)):
+"Search is merged" closed the search review instead of the search item (2 of 3), "Priya looked at
+it" never closed her PAY-231 review (3 of 3; the card offers "Close T8 too"), and "I'll send something tonight"
+kept a vague title (3 of 3; the code flags it). "I'll send it to Priya to check" became a review
+in all three.
 
-**Not verified:** the live test on Workers AI; Groq's free-plan limits
-([§22](DECISIONS.md#22-groq-replaces-gemini)).
+**Not verified:** Groq's free-plan limits beyond the daily token cap of 200,000 for this model,
+which four live weeks in one day used up ([§22](DECISIONS.md#22-groq-replaces-gemini)).
 
 ## Left out or not finished
 
@@ -206,8 +223,6 @@ schema draft") are missed or go to the wrong item.
   matching pass ([Out of scope](DECISIONS.md#out-of-scope-time-box)).
 - The page shows no days until one is drafted with a key, because drafts come from the command
   line.
-- Running the command line overwrites the saved replies (see "Run it").
-- The live test has not been run on Workers AI.
 - A duplicate under a new name ("Export feature" and "Atlas export") is not flagged by code; only
   the model's matching catches it ([§17](DECISIONS.md#17-phase-3-build-choices)).
 - A ticket or review link set on an earlier day cannot be removed on the page

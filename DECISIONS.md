@@ -718,6 +718,209 @@ Both were open in section 38.
   item was matched; a reopen says why). Known risk: a wrong reopen with a real quote goes through
   on a quick approve.
 
+## 43. Review fixes, batch 1: quotes, owners, dates, duplicates, glossary
+
+From a review of the finished build. Each fix has a test named "Review fix N".
+- **Due date is the first day named; the prompt no longer says otherwise.** The prompt listed
+  "by Thursday, Friday at the latest" as an example and also said "use the last one agreed", which
+  read as "Friday". The code takes the first day (Thursday), the same rule that gives 13 Oct for
+  "today, maybe tomorrow worst case" in EXPECTED.md. Kept the code rule; the prompt now says to copy
+  only the last date agreed when the date changes, and to copy a target-plus-fallback phrase whole.
+  Rejected: last day named, which breaks the answer key's Monday search date.
+- **Quotes match whole words, and one-word quotes do not count.** "it" was found inside any line.
+  A change whose quotes are all single words is unticked, like a missing quote.
+- **Owners must be backed by a quote.** A new owner who neither said one of the quotes nor is
+  named in one is flagged (ticked). Rejected: unticked, because the model often quotes only the
+  task line.
+- **A date must come from a line by or about the owner.** A due phrase whose quotes were said by
+  nobody who owns the item, and name none of them, is flagged. One line giving the due date of two
+  changes flags both: Workers AI gave Falcon the export's "Say Wednesday?" this way.
+- **Owners on the list stay valid owners.** Rohan owns items from Thursday; on a day he does not
+  speak he is still accepted. A speaker who is not on the team and owns nothing yet is accepted and
+  flagged "not on the team list", so a one-line visitor is not silently given work.
+- **A review is not a duplicate of the item it reviews.** The similar-title check skips the
+  `review_of` item.
+- **The brief's code names go to the model** (`GLOSSARY` in `models.py`): Hermes is the
+  notifications service, Atlas is the admin dashboard. The prompt says a plain name can match an
+  item named by its code name.
+
+## 44. Review fixes, batches 2 and 3: model misses, parser, typed dates, small fixes
+
+- **Prompt rules for the recurring misses.** "I'll send it to Cleo to check" / "Sure." is a
+  review owned by Cleo. Merged, shipped, deployed, "went out" and "is fixed" mean done. One
+  sentence can close several items. A date goes in `due_phrase`, never only in the note. A rule
+  about a person's work moves only items that person owns alone and that already have a firm day.
+- **A note flag catches what the prompt misses** (ticked, on changes that leave the item open):
+  a note that says the work is finished ("Search is merged" in Workers AI's Thursday). A second
+  flag, for a note naming a day when no due date is set, was removed in section 45.
+- **Not built:** a code check for a person rule applied to one shared item. When the rule moves
+  several items, the batch 1 check (one line dates two changes) flags them.
+- **The transcript parser accepts common formats.** A byte-order mark and a leading timestamp are
+  ignored; a name may be one to three capitalised words, accented, or a team name in any case
+  ("arjun" is Arjun). A line that is not a new turn joins the turn before it. This replaces the
+  section 11 rule that any line without `Name:` is an error: only a first line without one is.
+  Known risk: a continuation line that starts "Note: ..." reads as a speaker named Note (fixed in
+  section 46).
+- **Typed dates on the page.** `2025-10-22` is read as that day. A typed date the code cannot read
+  ("22/10") is kept as words with a warning that it will not show as overdue; approving still
+  works. A timeframe ("next week") gets no warning.
+- **Small fixes.** `cli run` with no file is a usage error. Each reply is saved next to its draft
+  in `data/`; only `--save-replies` writes `tests/replies`. Closed items untouched for 14 days are
+  left out of the prompt (the duplicate checks still see them). `seed()` never replaces a day the
+  lead approved, or a seed that later days were built on.
+
+## 45. Live runs after the review fixes, and four more checks
+
+**Runs (2026-11-18, Groq, gpt-oss-120b).** After batches 1–3 one run failed: Wednesday's "I'll
+send something tonight" was titled "Send onboarding doc", read as the onboarding doc created
+twice (as in section 41). The prompt then got a title rule (a title says what the work is, taken
+from the line a vague task answers; never another item's name unless the speaker names it) and a
+quote rule (quotes show what the work is and who takes it). Three runs in a row then passed:
+
+| | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Matching traps | pass | pass | pass |
+| Open items right (of 9) | 8 | 7 | 8 |
+| Kickoff doc titled "onboarding doc" | no | no | no |
+| Kickoff doc title says what it is | no ("Send something tonight") | no, plus a second item owned by Priya | no |
+| Priya's review of the onboarding draft | yes | yes | yes |
+| "Rolls to Monday" moves only Sana's item | yes | yes | yes |
+| Search closed on Thursday | no | yes | no |
+| Priya's PAY-231 review closed on Wednesday | no | no | no |
+
+Three runs of one model on one week: a pattern, not a rate.
+
+**Four checks added for what the runs showed**, each judged by what the lead sees on the card.
+All are flags on a ticked change; none merges or creates anything.
+- **"Merged" closes the work, not only its review.** Closing a review whose quotes say merged,
+  deployed, shipped, released, "went out", "is live" or "is fixed" while the item it reviews stays
+  open is flagged, naming that item. Not flagged when the same day closes it, it is already
+  closed, or the review is not linked. Future, conditional and negated wording ("once it's
+  merged", "not deployed yet", "will be deployed") does not count, here or in the note flag from
+  section 44. "Is done" does not count: "the review is done" is about the review. The prompt now
+  says the same.
+- **The same reviewer reviewing the same item twice** is a possible duplicate: a new review whose
+  owner already has an open review of that item, created the same day or on the list. Not flagged
+  for a different reviewer, or when the earlier review is closed (a second round). One flag per
+  earlier item, with the reason.
+- **A title that does not say what the work is** ("something", "anything", "stuff", "thing", or
+  ending in "it", "this" or "that") is flagged, showing the line before the quote ("Priya: Is there
+  a doc or anything?") so the lead can rename it. Also on renames. (Narrowed in section 46.)
+- **One problem, one reason.** A change already unticked for its quotes (none, not found, single
+  words) gets no follow-on flags that read those quotes: owner backing, date source, shared date
+  line, "merged". Run 2 showed a stitched quote also claiming the date "comes from a line not said
+  by Priya", which was false.
+
+Replayed on the three runs, the checks flag exactly the four problems above and nothing new on
+correct changes. Not caught: run 2's second kickoff item ("Doc for Falcon kickoff", owned by Priya
+because she asked the question).
+
+**"Close T8 too" is one click on the card.** Priya's PAY-231 review was never closed in any run:
+Dev's "Auth is done, … Priya looked at it" closed the auth bug only. The "Was the review done
+too?" flag fired each time, but acting on it took four steps (find the item, Change, set done,
+save), and a quick approve left the review open for good. Both flags that say another item may
+be finished ("Was the review done too?" and the "merged" flag) now carry the item's id, and the
+card shows a **Close T8 too** button under the flag. A click adds the lead's own close ("Added by
+you", removable) with the flagged change's quotes, so the evidence shows on the card and in the
+item's history.
+- Shown only while the flagged card is ticked and the item is still open on the list after
+  approving; then the card says "T8 will be closed." A double submit is refused as out of date;
+  a click from a reloaded page says it is already closed. The page checks the button's value
+  (card number, that the card suggests that item, that the item is on the starting list).
+- Rejected: code adding the close by itself when the quote names the reviewer next to a review
+  word. It breaks section 2 (the model proposes, the lead decides), and a pre-ticked guess goes
+  through on a quick approve. Rejected: a stronger prompt rule alone; the prompt already says
+  "Ana went over it" closes Ana's review and the model missed it in 3 of 3 runs.
+- Checked in a browser at desktop and phone width (390px).
+
+**The note-date flag is removed.** It flagged a note naming a day when no due date was set. Across
+the saved and live replies it was right 3 times and wrong 4, twice on the cert's "tomorrow
+morning", which is infra's date and rightly has no due date. A flag that is wrong half the time
+teaches the lead to skip flags. The prompt rule "a date goes in due_phrase, never only in the note"
+stays.
+
+## 46. Review fixes, batch 4: speakers, vague titles, flagged changes at Approve
+
+- **A line starts a turn only when it opens with a speaker's name.** Three kinds of line:
+  - a team name in any case, or a capitalised name ("Rohan", "Mary Ann Lee"): a new turn;
+  - words that cannot be a person: a label ("Update:", "Note:", "FYI:", a weekday), a ticket
+    ("PAY-231:") or a possessive ("Dev's PR:"): part of the turn above, like a line with no colon;
+  - anything else before a colon ("vikram:", "Mary ann:"): refused, naming the line and saying to
+    capitalise the name or join the line to the one above.
+- **Why:** section 44 joined "vikram: I'll take APP-415" to Arjun's turn, so the quote and the
+  owner check credited Arjun with no warning. It also made "Update: PAY-231 is done" a speaker
+  called Update, who could then become an owner.
+- **Rejected:** refusing every line that is not a confirmed name. That also refuses "Update:" and
+  "PAY-231:" lines, which plainly continue a turn. Also rejected: joining and warning, because the
+  parser has no way to show a warning and the lead never sees the turns before the quotes.
+- **Known limit:** the label list is not complete. An unlisted label ("Outcome:") still reads as a
+  speaker, and an owner taken from it is flagged "not on the team list".
+- All five transcripts and the held-out meeting load with the same turns as before.
+- **The page shows a refused transcript as an error** with the line number, instead of a server
+  error. Nothing is saved.
+- **Vague titles:** "something", "anything" and "whatever" are flagged anywhere, as before.
+  "Thing(s)", "stuff", "it", "this" and "that" are flagged only as the last word, ignoring a date
+  phrase at the end ("Fix the thing by Friday"). "Things page redesign" and "Thing X" are no
+  longer flagged. Replayed: none of the 43 titles in the saved replies and `data/` is flagged by
+  either rule, so no saved run changes.
+- **Flagged but ticked stays the rule** (section 17: untick when the evidence is missing, flag
+  when a field is questionable). A wrong, outside or unbacked owner, or a borrowed due date, has a
+  quote behind it, and the model often quotes only the task line, so unticking would hide correct
+  changes behind a click. To guard against a quick approve, the Approve section names every ticked
+  change with a flag the lead has not acted on, each linked to its card. A change leaves that
+  list once the lead unticks or edits it. Rejected: a confirm step before approving, which fires
+  most days ("No owner yet." is common) and teaches the lead to click through it. `--approve`
+  prints every flag before approving; it is for scripted runs.
+- **Test added:** `tentative` on a new item and on an existing one reaches the saved item.
+- **Not changed, with reasons:**
+  - A retro still gets a "similar title" flag against the item it is about. Not flagging "<work> on
+    <title>" would also skip "Fix for search latency" against "Search latency", which is the same
+    work. Duplicates are the main bug (section 1), so a false flag costs less than a missed one.
+  - "Priya looked at it" still does not close her review. The card offers "Close T8 too"; code
+    closing it on its own was rejected in section 45.
+  - Infra's "tomorrow morning" is still given to the wrong item by the model at times. The flag for
+    it was wrong half the time and was removed in section 45.
+
+## 47. Workers AI live runs, same-day updates, and the transcript as a checklist
+
+**Runs (2026-11-19, Workers AI, gpt-oss-120b; the first live test on this provider).** Three Groq
+runs the day before stopped at Groq's daily limit (200,000 tokens; 429 "tokens per day") on their
+first to third day; each stopped cleanly and saved nothing outside its temporary folder.
+
+| | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Matching traps | fail: kickoff doc titled "Send onboarding doc" | fail: "231 is back" not reopened | pass |
+| Open items right (of 9) | 5 (no Falcon migration, no retro) | 7 | 7 |
+| Kickoff doc title | "Send onboarding doc" (duplicate flag) | "Send something tonight" (vague-title flag) | "Send doc tonight" |
+| Search closed on Thursday | no | yes | no |
+| Priya's PAY-231 review closed | yes | yes | yes |
+| Time | 208s | 209s | 397s |
+
+Workers AI did worse than Groq on this week, and its worst misses were changes it never made, which
+no check on a change can flag.
+
+**Three fixes, none adding a new part to the page** (the page must stay readable without a manual):
+- **An update to an item created earlier in the same reply applies to it.** The model creates T7
+  and then updates "T7" (Groq run 2, Workers AI runs 1 and 3). The card said "Refers to item T7,
+  which is not on the list. Cannot apply." while T7 was the new item above it; in run 3 that update
+  carried Priya as the review's owner. The update now reaches the new item, matched by the id the
+  code gave it or the model's own id for the create. If the lead unticks the create, the update is
+  skipped and its card shows "Cannot apply". Base ids always win.
+- **The transcript tags the lines no change quotes.** The existing collapsed Transcript moves from
+  below Approve to just above "Add a missed item", so the page reads in order: today's changes, the
+  list after approving, what the meeting said that no change used, add what is missing, approve. Its
+  heading counts the untagged lines ("12 lines, 2 not used by any change"); one hint line says what
+  to do. Lines under four words ("Okay.", "Sure.") are not tagged. Replayed on the six live runs it
+  tags the misses no other check can see ("231 is back" and "Auth is fixed" in Workers AI run 2, the
+  retro line, Monday's Hermes deploy), plus 1–3 lines of chatter a day ("Fine, Monday. Dev,
+  anything else?"), up to 5 on a Monday. Known limit: a turn counts as used when any part of it is
+  quoted, so a skipped sentence inside a long turn ("Search is merged" next to the Falcon intro) is
+  not tagged. Rejected: a separate "skipped lines" section (one more part of the page to learn);
+  tagging by sentence (more tags, mostly chatter).
+- **The "finished but not closed" flag also reads the quotes**, not only the note, with the same
+  future and negation rules. Replayed on all saved and live replies it fires once: Workers AI run 1
+  gave the search item a note with "Search is merged" as its quote and left it open.
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.
