@@ -10,6 +10,9 @@ CLOSED: set[str] = {"done", "dropped"}
 # a valid owner for that day (Rohan joins on Thursday).
 TEAM: dict[str, list[str]] = {"Arjun": [], "Priya": [], "Dev": ["Devansh"], "Sana": []}
 
+# Code names from the brief; people use either name for the same thing.
+GLOSSARY: dict[str, str] = {"Hermes": "the notifications service", "Atlas": "the admin dashboard"}
+
 
 class Note(BaseModel):
     on: date

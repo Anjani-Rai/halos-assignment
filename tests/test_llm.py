@@ -85,3 +85,28 @@ def test_failed_reply_keeps_state(tmp_path, monkeypatch):
     with pytest.raises(llm.LLMError):
         cli.draft_day(path, "groq", s)
     assert s.draft(MON).model_dump() == first.model_dump()
+
+
+
+def test_prompt_has_glossary(tmp_path):
+    """Review fix 5: the brief's code names reach the model, so "admin dashboard" can match an Atlas item."""
+    from tracker import prompt
+    path = tmp_path / "2025-10-13.txt"
+    path.write_text("Arjun: Hi.\n")
+    msg = prompt.user_message(load(path), [])
+    assert "Atlas is the admin dashboard" in msg and "Hermes is the notifications service" in msg
+
+
+def test_old_closed_items_left_out_of_prompt(tmp_path):
+    """Review fix 10: closed items untouched for over two weeks are not sent; recent closes and open items are."""
+    from datetime import timedelta
+    from conftest import item
+    from tracker import prompt
+    path = tmp_path / "2025-10-31.txt"
+    path.write_text("Arjun: Hi.\n")
+    day = load(path).day
+    items = [item("T1", "Old close", status="done", created_on=day - timedelta(days=20)),
+             item("T2", "Recent close", status="done", created_on=day - timedelta(days=1)),
+             item("T3", "Old but open", created_on=day - timedelta(days=30))]
+    assert [i.id for i in prompt.sent(items, day)] == ["T2", "T3"]
+
