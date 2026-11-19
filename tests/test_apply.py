@@ -8,6 +8,7 @@ from tracker.apply import apply, edited, review
 LINES = [
     "Dev: Hey. Okay, so, bad news, 231 is back. Different cause this time, it's the session cookie, not the refresh.",
     "Dev: I'm on it, should be quick now that I know where to look.",
+    "Dev: Done by tomorrow, I think.",
     "Arjun: Already did. Search is merged, I'm watching the numbers, so far so good.",
     "Priya: Yeah. Which means, um, export is going to slip. Say Wednesday?",
     "Arjun: Wednesday's fine.",
@@ -163,11 +164,20 @@ def test_reopen_with_new_date(t):
     """§15, §42: a new date said in the meeting replaces the old one; ticked, with no flag."""
     items = base()
     p = one(change(item_id="T2", status="in_progress", due_phrase="tomorrow",
-                   quotes=[BACK, "Should be done tomorrow"]), t, items)
+                   quotes=[BACK, "Done by tomorrow"]), t, items)
     assert (p.selected, p.flags) == (True, [])
     assert p.due_date == date(2025, 10, 17)
     t2 = next(i for i in apply(items, [p], THU) if i.id == "T2")
     assert t2.due_date == date(2025, 10, 17)
+
+
+def test_tentative_applied(t):
+    """§4: "I might" makes the item tentative, on a new item and on an existing one."""
+    items = base()
+    ps = review(reply(change("create", title="Hermes retry bug", owners=["Sana"], tentative=True, quotes=[SANA]),
+                      change(item_id="T6", owners=["Rohan"], tentative=True, quotes=[ROHAN])), items, t)
+    after = {i.id: i for i in apply(items, ps, THU)}
+    assert after[ps[0].item_id].tentative and after["T6"].tentative
 
 
 def test_clear_due(t):
@@ -281,3 +291,189 @@ def test_edited(t):
     assert list(edited(owners)) == ["owners"]
     assert list(edited(unticked)) == ["selected"]
     assert list(edited(put_back)) == []
+
+
+def test_one_word_quote_unticked(t):
+    """Review fix 2: a quote of one word ("it") shows nothing; the change is unticked."""
+    p = one(change(item_id="T3", note="x", quotes=["it"]), t)
+    assert not p.selected and has(p, "too short")
+
+
+def test_quote_matches_whole_words_only(t):
+    """Review fix 2: a quote must match whole words, not part of a longer word."""
+    p = one(change(item_id="T3", note="x", quotes=["ick the Hermes retry bug"]), t)
+    assert not p.selected and has(p, "quote not found")
+
+
+def test_owner_not_named_in_quotes_flagged(t):
+    """Review fix 2: a new owner the quotes neither come from nor name is flagged."""
+    p = one(change("create", title="Export polish", owners=["Dev"], quotes=[WEDNESDAY]), t)
+    assert p.change.owners == ["Dev"] and has(p, "took this on")
+
+
+def test_due_from_another_persons_line_flagged(t):
+    """Review fix 2: a date from a line not said by or naming the item's owner is flagged."""
+    p = one(change(item_id="T3", due_phrase="tomorrow", quotes=[SANA, "Should be done tomorrow"]), t)
+    assert p.due_date is not None and has(p, "check it is about this item")
+
+
+def test_one_line_dating_two_items_flagged(t):
+    """Review fix 2: one line giving the due date of two changes flags both."""
+    ps = review(reply(change(item_id="T3", due_phrase="Wednesday", quotes=[WEDNESDAY]),
+                      change("create", title="Falcon migration", owners=["Priya"], due_phrase="Wednesday",
+                             quotes=[WEDNESDAY])), base(), t)
+    assert all(has(p, "gives the due date of t3, t7") for p in ps)
+
+
+def test_owner_on_the_list_kept_on_a_silent_day(tmp_path):
+    """Review fix 3: someone who already owns an item stays a valid owner on a day they do not speak."""
+    silent = transcript(tmp_path, THU, ["Arjun: Rohan will fix the onboarding doc by tomorrow."])
+    items = [item("T1", "Onboarding doc", owners=["Rohan"]), item("T2", "Hermes retry bug")]
+    p = one(change(item_id="T2", owners=["Rohan"], quotes=["Rohan will fix the onboarding doc"]), silent, items)
+    assert p.change.owners == ["Rohan"] and not has(p, "not on the team")
+
+
+def test_speaker_not_on_team_flagged(t):
+    """Review fix 3: a speaker who is not on the team can own work, flagged for the lead."""
+    p = one(change(item_id="T6", owners=["Rohan"], status="in_progress", quotes=[ROHAN]), t)
+    assert p.change.owners == ["Rohan"] and p.selected and has(p, "not on the team list")
+
+
+def test_review_not_flagged_as_duplicate_of_parent(t):
+    """Review fix 4: a review's title repeats its parent's; that is not a possible duplicate."""
+    items = [*base(), item("T7", "Webhook signature", owners=["Dev"])]
+    p = one(change("create", title="Review webhook signature", owners=["Priya"], review_of="T7",
+                   quotes=[WEDNESDAY]), t, items)
+    assert not has(p, "duplicate")
+
+
+def test_finished_note_without_close_flagged(t):
+    """Review fix 6: "Search is merged" kept only as a note is flagged; the item is not closed."""
+    p = one(change(item_id="T1", note="Search is merged", quotes=["Search is merged"]), t)
+    assert has(p, "not closed")
+
+
+# Review fix 11: "merged" is about the work, not its review. T5 reviews T2 (open in OPEN_PARENT).
+MERGED = "Search is merged, I'm watching the numbers"
+
+
+@pytest.mark.parametrize("quote, closes_parent_too, parent_status, flagged", [
+    (MERGED, False, "in_progress", True),                       # the work is finished but stays open
+    (MERGED, True, "in_progress", False),                       # the same day closes it too
+    (MERGED, False, "done", False),                              # already closed
+    ("231 is back", False, "in_progress", False),                # no finished-work words
+])
+def test_review_closed_with_merged(tmp_path, quote, closes_parent_too, parent_status, flagged):
+    t = transcript(tmp_path, THU, LINES + ["Arjun: Search is merged, I'm watching the numbers, so far so good."])
+    items = base(T2={"status": parent_status})
+    changes = [change(item_id="T5", status="done", quotes=[quote])]
+    if closes_parent_too:
+        changes.append(change(item_id="T2", status="done", quotes=[MERGED]))
+    p = review(reply(*changes), items, t)[0]
+    assert has(p, "close it too") == flagged and p.selected
+
+
+@pytest.mark.parametrize("text, finished", [
+    ("Search is merged", "merged"),
+    ("deployed last night", "deployed"),
+    ("once it's merged we can start", None),
+    ("not deployed yet", None),
+    ("it isn't merged", None),
+    ("will be deployed tomorrow", None),
+    ("the review is done", None),
+])
+def test_finished_words(text, finished):
+    """Review fix 11: future, conditional and negated wording does not count as finished."""
+    from tracker.apply import _finished
+    assert _finished(text) == finished
+
+
+def test_future_note_not_flagged_as_finished(t):
+    """Review fix 11: a note saying the work will be deployed is not read as finished."""
+    p = one(change(item_id="T3", note="will be deployed tomorrow", quotes=[WEDNESDAY]), t)
+    assert not has(p, "should it be closed")
+
+
+# Review fix 12: the same reviewer reviewing the same item twice.
+def test_same_reviewer_twice_same_day(t):
+    ps = review(reply(change("create", title="Glance at auth PR", owners=["Priya"], review_of="T2", quotes=[BACK]),
+                      change("create", title="Review Dev's PR", owners=["Priya"], review_of="T2", quotes=[BACK])),
+                base(T5={"status": "done"}), t)
+    assert not has(ps[0], "duplicate") and has(ps[1], "already reviewing t2")
+
+
+def test_same_reviewer_with_open_review_on_list(t):
+    """T5 is Priya's open review of T2 on the list."""
+    p = one(change("create", title="Look over the cookie fix", owners=["Priya"], review_of="T2", quotes=[BACK]), t)
+    assert has(p, "possible duplicate of t5")
+
+
+def test_other_reviewer_or_closed_review_not_duplicate(t):
+    other = one(change("create", title="Look over the cookie fix", owners=["Dev"], review_of="T2", quotes=[BACK]), t)
+    second_round = one(change("create", title="Look over the cookie fix", owners=["Priya"], review_of="T2",
+                              quotes=[BACK]), t, base(T5={"status": "done"}))
+    assert not has(other, "duplicate") and not has(second_round, "duplicate")
+
+
+# Review fix 13: titles that do not say what the work is.
+def test_vague_title_flagged_with_line_before(tmp_path):
+    t = transcript(tmp_path, THU, ["Priya: Is there a doc or anything?", "Arjun: I'll send something tonight."])
+    p = one(change("create", title="Send something tonight", owners=["Arjun"], quotes=["I'll send something tonight."]),
+            t, [])
+    assert has(p, "does not say what the work is") and any("Priya: Is there a doc or anything?" in f for f in p.flags)
+    assert p.selected
+
+
+@pytest.mark.parametrize("title", ["Send the Falcon kickoff doc", "Check that the export works", "Review search PR",
+                                   "Things page redesign", "Thing X"])
+def test_specific_title_not_flagged(t, title):
+    assert not has(one(change("create", title=title, owners=["Sana"], quotes=[SANA]), t), "does not say")
+
+
+@pytest.mark.parametrize("title", ["Look into it", "Fix the thing by Friday", "Ship it next week"])
+def test_vague_rename_flagged(t, title):
+    """§46: a placeholder is vague as the last word, before any date phrase."""
+    assert has(one(change(item_id="T3", title=title, quotes=[WEDNESDAY]), t), "does not say")
+
+
+# Review fix 14: a change already unticked for its quotes gets that one reason, not follow-on flags.
+def test_quote_not_found_gives_one_reason(t):
+    p = one(change(item_id="T3", owners=["Dev"], due_phrase="Wednesday",
+                   quotes=["export is going to slip. ... Say Wednesday?"]), t)
+    assert not p.selected and has(p, "quote not found")
+    assert not has(p, "check it is about this item") and not has(p, "took this on")
+
+
+def test_flags_suggest_the_item_to_close(t):
+    """Review fix 15: both "close it too" flags name the item, so the page can offer one click."""
+    parent = one(change(item_id="T2", status="done", quotes=[BACK]), t, base(**OPEN_PARENT))
+    assert parent.suggest_close == ["T5"]
+    clean = one(change(item_id="T3", note="slipping", quotes=[WEDNESDAY]), t)
+    assert clean.suggest_close == []
+
+
+# Review fix 16: an update to an item the model created earlier in the same reply.
+def test_update_to_item_created_today(t):
+    """The update applies to the new item instead of "not on the list"; unticking the create skips it."""
+    items = base()
+    ps = review(reply(change("create", title="Review the cookie fix", owners=[], review_of="T2", quotes=[BACK]),
+                      change(item_id="T7", owners=["Dev"], quotes=["I'm on it, should be quick"])), items, t)
+    assert ps[0].item_id == "T7" and (ps[1].item_id, ps[1].applicable, ps[1].selected) == ("T7", True, True)
+    assert next(i for i in apply(items, ps, THU) if i.id == "T7").owners == ["Dev"]
+    ps[0].selected = False
+    assert "T7" not in {i.id for i in apply(items, ps, THU)}
+
+
+def test_update_by_the_models_own_id_for_a_create(t):
+    """The model may give its create an id of its own; an update naming that id reaches the new item."""
+    ps = review(reply(change("create", item_id="new1", title="Review the cookie fix", owners=[], quotes=[BACK]),
+                      change(item_id="new1", owners=["Dev"], quotes=["I'm on it, should be quick"])), base(), t)
+    assert ps[1].item_id == ps[0].item_id == "T7" and ps[1].applicable
+
+
+def test_finished_quote_without_close_flagged(t):
+    """Review fix 17: a quote saying the work is merged, on a change that leaves the item open, is flagged."""
+    p = one(change(item_id="T1", note="watching the numbers", quotes=["Search is merged, I'm watching the numbers"]), t)
+    assert has(p, 'the quote says "merged"')
+    closing = one(change(item_id="T1", status="done", quotes=["Search is merged, I'm watching the numbers"]), t)
+    assert not has(closing, "should it be closed")

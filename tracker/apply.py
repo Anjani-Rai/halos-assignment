@@ -1,11 +1,31 @@
+import re
 from datetime import date
 from difflib import SequenceMatcher
 
 from . import checks
-from .models import CLOSED, Change, Event, Item, Note, Proposed, Reply
+from .models import CLOSED, TEAM, Change, Event, Item, Note, Proposed, Reply
 from .transcript import Transcript
 
 SIMILAR = 0.75  # title similarity that triggers a "possible duplicate" flag
+# Words that say the work itself is finished. "is done" is left out: "the review is done" is not.
+_WORK_DONE = re.compile(r"\b(merged|deployed|shipped|released|went out|is live|is fixed)\b")
+# A word just before that makes it future, conditional or negated ("once it's merged").
+_NOT_YET = {"not", "never", "once", "until", "before", "after", "when", "if", "will", "can", "could",
+            "should", "would", "gets", "getting", "be", "yet"}
+# A title that does not say what the work is: a pronoun anywhere ("Send something tonight"), or a
+# placeholder as the last word before any date phrase ("Fix the thing by Friday", not "Things page redesign").
+_VAGUE_ANYWHERE = re.compile(r"\b(something|anything|whatever)\b")
+_VAGUE_LAST = re.compile(r"\b(things?|stuff|it|this|that)$")
+
+
+def _finished(text: str) -> str | None:
+    """The words saying the work is finished ("merged"), or None if absent, future or negated."""
+    t = checks.norm(text)
+    for m in _WORK_DONE.finditer(t):
+        before = re.findall(r"[\w']+", t[:m.start()])[-3:]
+        if not any(w in _NOT_YET or w.endswith("n't") for w in before):
+            return m[1]
+    return None
 
 
 def fmt_due(phrase: str | None, d: date | None) -> str:
@@ -40,6 +60,10 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
     created: list[Proposed] = []
     out = []
     closing = {c.item_id for c in reply.changes if c.action == "update" and c.status in CLOSED}
+    known = list(dict.fromkeys(o for i in base for o in i.owners))  # owners on the list stay valid owners
+    people = [*t.speakers, *known]
+    due_turns: dict[int, list[Proposed]] = {}  # turn index -> changes that took their due date from it
+    made: dict[str, Item] = {}  # items created earlier in this reply, by the id the model or the code gave them
     for raw in reply.changes:
         c = raw.model_copy(deep=True)
         p = Proposed(change=c, item_id=c.item_id)
@@ -51,17 +75,31 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
         elif missing:
             p.flags.append(f'Quote not found in the meeting: "{missing[0]}"')
             p.selected = False
+        elif max(map(checks.words, c.quotes)) < 2:
+            p.flags.append("The quotes are single words, too short to show what was said.")
+            p.selected = False
+        trusted = p.selected  # quotes are there and found; checks that read them are meaningful
+        item = by_id.get(c.item_id or "") if c.action == "update" else None
+        if c.action == "update" and item is None and (item := made.get(c.item_id or "")):
+            c.item_id = p.item_id = item.id  # the model updates an item it created above in this reply
 
         if c.owners is not None:
             kept = []
             for name in c.owners:
-                canon = checks.owner(name, t.speakers)
+                canon = checks.owner(name, people)
                 if canon is None:
-                    p.flags.append(f'"{name}" is not on the team or in this meeting, so not set as owner.')
+                    p.flags.append(f'"{name}" is not on the team, in this meeting or on the list, so not set as owner.')
                 elif canon not in kept:
                     kept.append(canon)
             # On update, a list where every name failed means "unchanged", not "remove the owner".
             c.owners = None if (c.action == "update" and c.owners and not kept) else kept
+            for o in c.owners or []:
+                if item and o in item.owners:
+                    continue
+                if o not in TEAM and o not in known:
+                    p.flags.append(f"{o} is not on the team list. Check they should own this.")
+                if trusted and not any(o in _by_or_about(q, t, people) for q in c.quotes):
+                    p.flags.append(f"No quote is said by {o} or names {o}. Check {o} took this on.")
 
         if c.due_phrase is not None:
             if not checks.quote_found(c.due_phrase, t.turns):
@@ -73,6 +111,21 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
                 c.due_phrase = None
             else:
                 p.due_date = checks.due_date(c.due_phrase, t.day)
+                said = [q for q in c.quotes if checks.quote_found(c.due_phrase, [("", q)])]
+                owners = c.owners if c.owners is not None else (item.owners if item else [])
+                if trusted and owners and not any(set(owners) & _by_or_about(q, t, people) for q in said):
+                    p.flags.append(f'Due "{c.due_phrase}" comes from a line not said by or naming '
+                                   f'{", ".join(owners)}. Check it is about this item.')
+                for n in {n for q in said for n in checks.turns_with(q, t.turns)} if trusted else ():
+                    due_turns.setdefault(n, []).append(p)
+
+        status = c.status or (item.status if item else "open")
+        if c.note and status not in CLOSED:
+            if w := _finished(c.note):
+                p.flags.append(f'The note says "{w}", but the item is not closed. Should it be closed?')
+        if status not in CLOSED and not (c.note and _finished(c.note)) and trusted \
+                and (w := next(filter(None, map(_finished, c.quotes)), None)):
+            p.flags.append(f'The quote says "{w}", but the item is not closed. Should it be closed?')
 
         if c.ticket is not None and (tk := checks.ticket(c.ticket)) != c.ticket:
             if tk is None:
@@ -84,7 +137,6 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
             c.review_of = None
 
         if c.action == "update":
-            item = by_id.get(c.item_id or "")
             if item is None:
                 p.flags.append(f"Refers to item {c.item_id}, which is not on the list. Cannot apply.")
                 p.selected = p.applicable = False
@@ -97,11 +149,18 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
                     p.selected = False
                 if closed and reopening and item.due_date and not c.due_phrase and not c.clear_due:
                     p.flags.append(f"Reopened with the old due date ({item.due_date:%a %d %b}). Still right?")
+                parent = by_id.get(item.review_of or "")
+                if (trusted and not closed and c.status in CLOSED and parent and parent.status not in CLOSED
+                        and parent.id not in closing and (w := next(filter(None, map(_finished, c.quotes)), None))):
+                    p.flags.append(f'The quote says "{w}", which is about {parent.id} "{parent.title}", not only its '
+                                   f'review. {parent.id} stays open; close it too if the work is finished.')
+                    p.suggest_close.append(parent.id)
                 if not closed and c.status in CLOSED:
                     for r in base:
                         if r.review_of == item.id and r.status not in CLOSED and r.id not in closing:
                             p.flags.append(f'"{item.title}" is {c.status}. Was the review done too? '
                                            f'({r.id} "{r.title}" is still open.)')
+                            p.suggest_close.append(r.id)
         else:
             p.item_id = f"T{new_id}"
             new_id += 1
@@ -111,14 +170,43 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
             if not c.owners:
                 p.flags.append("No owner yet.")
             for other in [*base, *(Item(id=x.item_id, title=x.change.title, ticket=x.change.ticket,
-                                        created_on=t.day) for x in created)]:
+                                        owners=x.change.owners or [], status=x.change.status or "open",
+                                        review_of=x.change.review_of, created_on=t.day) for x in created)]:
+                if other.id == c.review_of:
+                    continue  # a review's title naturally repeats the item it reviews
+                same_reviewer = [o for o in c.owners or [] if o in other.owners]
                 if c.ticket and c.ticket == other.ticket:
-                    p.flags.append(f'Possible duplicate of {other.id} "{other.title}" (same ticket {c.ticket}).')
+                    why = f"same ticket {c.ticket}"
+                elif c.review_of and other.review_of == c.review_of and other.status not in CLOSED and same_reviewer:
+                    why = f"{', '.join(same_reviewer)} is already reviewing {c.review_of}"
                 elif SequenceMatcher(None, checks.norm(c.title), checks.norm(other.title)).ratio() >= SIMILAR:
-                    p.flags.append(f'Possible duplicate of {other.id} "{other.title}" (similar title).')
+                    why = "similar title"
+                else:
+                    continue
+                p.flags.append(f'Possible duplicate of {other.id} "{other.title}" ({why}).')
             created.append(p)
+            made_item = Item(id=p.item_id, title=c.title, owners=c.owners or [], status=c.status or "open",
+                             due_phrase=c.due_phrase, due_date=p.due_date, review_of=c.review_of, created_on=t.day)
+            made[p.item_id] = made_item
+            if raw.item_id and raw.item_id not in by_id:
+                made.setdefault(raw.item_id, made_item)  # the model's own id for it, if it gave one
+        if c.title and (_VAGUE_ANYWHERE.search(checks.norm(c.title)) or _VAGUE_LAST.search(checks.without_due(c.title))):
+            first = next((n for q in c.quotes for n in checks.turns_with(q, t.turns)), None)
+            before = (f' The line before it: "{t.turns[first - 1][0]}: {t.turns[first - 1][1][:80]}".'
+                      if first else "")
+            p.flags.append(f'The title "{c.title}" does not say what the work is.{before} Rename it on the card.')
         out.append(p)
+    for n, ps in due_turns.items():
+        if len(ps) > 1:  # one line gave the due date of two changes
+            ids = ", ".join(dict.fromkeys(x.item_id for x in ps))
+            for x in ps:
+                x.flags.append(f'The line "{t.turns[n][1][:60]}" gives the due date of {ids}. Check which item it is about.')
     return out
+
+
+def _by_or_about(quote: str, t: Transcript, people: list[str]) -> set[str]:
+    """People who said the quote, plus people it names."""
+    return {t.turns[n][0] for n in checks.turns_with(quote, t.turns)} | checks.names_in(quote, people)
 
 
 def apply(base: list[Item], proposed: list[Proposed], day: date) -> list[Item]:
@@ -129,6 +217,8 @@ def apply(base: list[Item], proposed: list[Proposed], day: date) -> list[Item]:
         if not (p.selected and p.applicable):
             continue
         c = p.change
+        if c.action == "update" and p.item_id not in items:
+            continue  # it updates an item created today whose create is unticked
         if c.action == "create":
             items[p.item_id] = Item(
                 id=p.item_id, title=c.title, owners=c.owners or [], status=c.status or "open",
