@@ -82,7 +82,13 @@ MON, TUE, WED, THU, FRI, MON20 = (D(2025, 10, d) for d in (13, 14, 15, 16, 17, 2
     (MON20, "probably Wednesday", D(2025, 10, 22)),
     (D(2025, 10, 29), "the 3rd", D(2025, 11, 3)),                 # §17 next month
     (D(2025, 12, 15), "Jan 5", D(2026, 1, 5)),                    # §17 next year
+    (MON, "2025-10-20", D(2025, 10, 20)),                         # review fix 9: ISO date
 ])
 def test_due_date(day, phrase, expected):
     """§4, §11, §17, §24 and the EXPECTED.md date rules."""
     assert due_date(phrase, day) == expected
+
+
+def test_by_thursday_friday_at_the_latest():
+    """Review fix 1: the first day named is the due date, as with "today, maybe tomorrow worst case"."""
+    assert due_date("by Thursday, Friday at the latest", MON) == D(2025, 10, 16)
