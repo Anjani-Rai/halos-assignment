@@ -282,7 +282,8 @@ def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=Non
     unused = unused_lines(d, t, final) if d and t else set()
     flagged = [c for c in cards if c["p"].selected and c["p"].applicable and c["p"].flags and not c["edits"]]
     provider = chain.removesuffix("-heldout")
-    run = (f"uv run --env-file .env python -m tracker.cli heldout --provider {provider}" if provider != chain
+    run = ("uv run python -m tracker.cli demo" if chain == "demo"
+           else f"uv run --env-file .env python -m tracker.cli heldout --provider {provider}" if provider != chain
            else f"uv run --env-file .env python -m tracker.cli run {path} --provider {chain}")
     live = [i for i in final if i.status not in CLOSED]
     return pages.TemplateResponse(request, "day.html", dict(

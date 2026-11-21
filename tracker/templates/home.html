@@ -12,7 +12,9 @@
   </ul>
 </section>
 {% else %}
-<p>No data/ folder yet. Draft a day first:</p>
+<p>No data/ folder yet. To try the page with no key, draft the demo week from saved model replies:</p>
+<pre>uv run python -m tracker.cli demo</pre>
+<p>With a key, draft a day from the model:</p>
 <pre>uv run --env-file .env python -m tracker.cli run transcripts/2025-10-13.txt --provider groq</pre>
 {% endfor %}
 {% endblock %}

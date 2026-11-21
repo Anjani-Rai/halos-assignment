@@ -5,6 +5,7 @@ uv run --env-file .env python -m tracker.cli week --provider groq --approve
 uv run --env-file .env python -m tracker.cli heldout --provider groq --approve
 uv run --env-file .env python -m tracker.cli score --provider groq --runs 3
 uv run python -m tracker.cli score --replay runs/<folder>
+uv run python -m tracker.cli demo     # no key: drafts the next demo day from the saved Groq replies
 --approve accepts every ticked change as is; real use goes through the review page.
 Each model reply is kept next to its draft in data/; --save-replies also writes it to tests/replies,
 which the saved-reply tests read. score drafts each day of the answer key (tests/key) --runs times
@@ -30,23 +31,47 @@ from .transcript import load
 
 REPLIES: Path | None = None  # set by --save-replies to tests/replies
 HELDOUT = Path("tests/heldout")
+DEMO = Path("tests/replies/groq")  # saved real Groq replies for the week, used by the demo command
 
 
-def draft_day(path: Path, provider: str, store: Store) -> Draft:
+def draft_day(path: Path, provider: str, store: Store, saved: Path | None = None) -> Draft:
+    """Drafts one day: the model's reply (or a saved reply from `saved`, with no model call), run
+    through the code checks and saved as the day's draft."""
     t = load(path)
     store.check_can_change(t.day)  # refuse before spending a model call
     base_day, base = store.base_for(t.day)
-    print(f"\n.. {t.day:%a %d %b}: asking {provider}")
-    r = llm.call(provider, prompt.SYSTEM, prompt.user_message(t, base))
-    meta = r.meta()
-    for out in [store.dir / f"{t.day}.reply.json", *([REPLIES / store.dir.name / f"{t.day}.json"] if REPLIES else [])]:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(json.dumps({"meta": meta, "reply": json.loads(r.raw)}, indent=1) + "\n")
-    reply = Reply.model_validate_json(r.raw)
-    d = Draft(day=t.day, provider=r.provider, model=r.model, base_day=base_day, base=base,
+    if saved:
+        raw = json.loads((saved / f"{t.day}.json").read_text())
+        reply, meta = Reply.model_validate(raw["reply"]), raw.get("meta", {})
+        meta = {**meta, "provider": f"saved reply ({meta.get('provider', saved.name)})", "seconds": 0}
+    else:
+        print(f"\n.. {t.day:%a %d %b}: asking {provider}")
+        r = llm.call(provider, prompt.SYSTEM, prompt.user_message(t, base))
+        reply, meta = r.reply, r.meta()
+        for out in [store.dir / f"{t.day}.reply.json", *([REPLIES / store.dir.name / f"{t.day}.json"] if REPLIES else [])]:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps({"meta": meta, "reply": json.loads(r.raw)}, indent=1) + "\n")
+    d = Draft(day=t.day, provider=meta["provider"], model=meta.get("model", "unknown"), base_day=base_day, base=base,
               proposed=review(reply, base, t), reply=reply)
     store.save_draft(d)
-    print(f"\n== {t.day:%a %d %b} · {r.provider} {r.model} · {r.seconds}s · {len(d.proposed)} changes")
+    print(f"\n== {t.day:%a %d %b} · {d.provider} {d.model} · {meta['seconds']}s · {len(d.proposed)} changes")
+    return d
+
+
+def demo(store: Store) -> Draft | None:
+    """Drafts the next day of the demo week from the saved Groq replies: no key and no model call.
+    A draft already waiting is left alone, so the lead's edits on the page are never overwritten."""
+    done = set(store.approved_days())
+    todo = [d for d in store.transcript_days() if d not in done and (DEMO / f"{d}.json").exists()]
+    if not todo:
+        print("Every demo day is approved. Delete data/demo to start again.")
+        return None
+    if store.draft(todo[0]):
+        print(f"{todo[0]:%a %d %b} is drafted already. Review and approve it at http://127.0.0.1:8000/demo/{todo[0]}, "
+              "then run this again for the next day.")
+        return None
+    d = draft_day(store.transcripts / f"{todo[0]}.txt", "demo", store, saved=DEMO)
+    print(f"Review it at http://127.0.0.1:8000/demo/{d.day} (uv run python -m tracker.web)")
     return d
 
 
@@ -109,7 +134,7 @@ def show_list(items) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["run", "week", "heldout", "score"])
+    ap.add_argument("cmd", choices=["run", "week", "heldout", "score", "demo"])
     ap.add_argument("transcript", type=Path, nargs="?")
     ap.add_argument("--provider", default=os.environ.get("LLM_PROVIDER", "groq"))
     ap.add_argument("--approve", action="store_true")
@@ -130,6 +155,10 @@ def main() -> None:
     logging.getLogger("openai._base_client").setLevel(logging.INFO)
     if args.cmd == "score":
         score.score_command(args.provider, args.mode, args.runs, args.replay)
+        return
+    if args.cmd == "demo":
+        if d := demo(Store("demo")):
+            show_changes(d)
         return
     store = Store(args.provider)
 

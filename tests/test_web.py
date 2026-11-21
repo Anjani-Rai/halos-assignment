@@ -485,3 +485,26 @@ def test_thin_quote_card_shows_full_lines(site):
     n = cards(html)["T17"]
     card = _section(html, f'id="card{n}"', f'id="card{n + 1}"')
     assert "The full lines they come from" in card and "Sana: Thanks. The APP-402 fix is up." in card
+
+
+def test_demo_week_needs_no_key(tmp_path, monkeypatch):
+    """§52: the demo drafts each day from the saved Groq replies with no model call, never overwrites a
+    draft the lead is editing, follows day order, and the page names the demo command for a day not
+    yet drafted."""
+    from tracker import cli
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(web, "DATA", tmp_path)
+
+    def no_model(*a):
+        raise AssertionError("the demo must not call a model")
+    monkeypatch.setattr(llm, "call", no_model)
+    s = Store("demo", root=tmp_path, transcripts=REPO / "transcripts")
+    d = cli.demo(s)
+    assert (d.day, d.provider) == (MON, "saved reply (groq)") and d.proposed
+    d.proposed[0].change.title = "Edited by the lead"
+    s.save_draft(d)
+    assert cli.demo(s) is None and s.draft(MON).proposed[0].change.title == "Edited by the lead"
+    page = page_text(TestClient(web.app).get(f"/demo/{TUE.isoformat()}").text)
+    assert "uv run python -m tracker.cli demo" in page
+    s.approve(MON)
+    assert cli.demo(s).day == TUE
