@@ -477,3 +477,55 @@ def test_finished_quote_without_close_flagged(t):
     assert has(p, 'the quote says "merged"')
     closing = one(change(item_id="T1", status="done", quotes=["Search is merged, I'm watching the numbers"]), t)
     assert not has(closing, "should it be closed")
+
+
+# Review fix 19: a close or reopen must be about the item it targets.
+def test_close_not_naming_its_item_flagged(t):
+    """A close whose quotes and the line before name nothing of the item is flagged, and stays ticked."""
+    p = one(change(item_id="T4", status="done", quotes=["Wednesday's fine."]), t)
+    assert has(p, 'names t4 "hermes staging deploy"') and p.selected
+
+
+@pytest.mark.parametrize("c", [
+    change(item_id="T1", status="done", quotes=["Search is merged"]),      # title word
+    change(item_id="T2", status="in_progress", quotes=[BACK]),             # bare ticket number
+    change(item_id="T6", status="done", quotes=["Yes, take it."]),         # named in the line before
+])
+def test_close_or_reopen_naming_its_item_not_flagged(t, c):
+    assert not has(one(c, t), "check this")
+
+
+def test_one_line_closing_three_items(t):
+    """The quote check alone accepts one real line closing every item; only the item it names passes."""
+    line = "Search is merged, I'm watching the numbers"
+    ps = review(reply(*(change(item_id=i, status="done", quotes=[line]) for i in ["T1", "T3", "T4"])), base(), t)
+    assert [has(p, "check this close") for p in ps] == [False, True, True]
+
+
+# Review fix 20: thin quotes come with the lines that say what the work is.
+def test_thin_quote_shows_its_lines(t):
+    p = one(change(item_id="T6", owners=["Rohan"], quotes=["Yes, take it."]), t)
+    assert p.context == [("Rohan", LINES[7].removeprefix("Rohan: ")), ("Arjun", LINES[8].removeprefix("Arjun: "))]
+    assert one(change(item_id="T6", owners=["Rohan"], quotes=[ROHAN]), t).context == []
+
+
+def test_date_of_knowing_more_dropped(tmp_path):
+    """EXPECTED.md Monday: "I'll know by tonight" is not the search fix's due date."""
+    tt = transcript(tmp_path, THU, ["Arjun: Search latency, still on it. I'll know by tonight."])
+    p = one(change("create", title="Search latency", owners=["Arjun"], due_phrase="by tonight",
+                   quotes=["Search latency, still on it. I'll know by tonight."]), tt, [])
+    assert has(p, "will know more") and p.change.due_phrase is None and p.due_date is None
+
+
+# Review fix 21: another party's date is flagged, with or without an owner.
+@pytest.mark.parametrize("owners", [["Sana"], []])
+def test_other_teams_date_flagged(tmp_path, owners):
+    """EXPECTED.md Tuesday: infra's date for the cert is not the deploy's due date."""
+    tt = transcript(tmp_path, THU, ["Sana: Infra got back. They say the cert will be done tomorrow morning.",
+                                    "Sana: The deploy should be done tomorrow."])
+    items = base(T4={"owners": owners})
+    infra = one(change(item_id="T4", due_phrase="tomorrow morning",
+                       quotes=["They say the cert will be done tomorrow morning."]), tt, items)
+    assert has(infra, "outside the team") and infra.selected
+    own = one(change(item_id="T4", due_phrase="tomorrow", quotes=["The deploy should be done tomorrow."]), tt, items)
+    assert not has(own, "outside the team")

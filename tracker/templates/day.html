@@ -59,6 +59,8 @@
     · due {{ fmt_due(ch.due_phrase, p.due_date) }}{% if ch.ticket %} · {{ ch.ticket }}{% endif %}{% if ch.review_of %} · review of {{ ch.review_of }}{% endif %}{% if ch.note %} · note: {{ ch.note }}{% endif %}</p>
   {% elif c.what %}<p class="what">{{ c.what|replace("_", " ") }}</p>{% endif %}
   {% for sp, q in c.quotes %}<blockquote>“{{ q }}”{% if sp %} <cite>— {{ sp }}</cite>{% endif %}</blockquote>{% endfor %}
+  {% if p.context %}<p class="hint">The quotes do not name the work. The full lines they come from:</p>
+    {% for sp, text in p.context %}<blockquote><b>{{ sp }}:</b> {{ text }}</blockquote>{% endfor %}{% endif %}
   {% if p.flags %}<ul class="flags">{% for f in p.flags %}<li>{{ f }}</li>{% endfor %}</ul>
     {% for x, still_open in c.offers %}{% if still_open %}<button name="do" value="close:{{ x }}:{{ c.n }}">Close {{ x }} too</button>
     {% else %}<p class="hint">{{ x }} will be closed.</p>{% endif %}{% endfor %}

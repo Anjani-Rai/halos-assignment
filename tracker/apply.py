@@ -3,7 +3,7 @@ from datetime import date
 from difflib import SequenceMatcher
 
 from . import checks
-from .models import CLOSED, TEAM, Change, Event, Item, Note, Proposed, Reply
+from .models import CLOSED, GLOSSARY, TEAM, Change, Event, Item, Note, Proposed, Reply
 from .transcript import Transcript
 
 SIMILAR = 0.75  # title similarity that triggers a "possible duplicate" flag
@@ -50,6 +50,19 @@ def edited(p: Proposed) -> list[str]:
     o = p.original
     return [f for f in Change.model_fields if getattr(o.change, f) != getattr(p.change, f)] + (
         ["selected"] if o.selected != p.selected else [])
+
+
+def work_words(title: str, ticket: str | None, review_of: str | None, by_id: dict[str, Item]) -> set[str]:
+    """Words a line uses to name an item: its title words, its ticket number, the other name for a
+    code name (Hermes is the notifications service), and for a review, the reviewed item and its owners."""
+    words = checks.topic(f"{title} {ticket or ''}")
+    for code, plain in GLOSSARY.items():
+        other = checks.topic(plain)
+        if code.lower() in words or words & other:
+            words |= other | {code.lower()}
+    if parent := by_id.get(review_of or ""):
+        words |= work_words(parent.title, parent.ticket, None, by_id) | {checks.norm(o) for o in parent.owners}
+    return words
 
 
 def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
@@ -109,14 +122,23 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
                 # said, but by someone else about other work ("tomorrow" from another speaker's item)
                 p.flags.append(f'Due "{c.due_phrase}" is not in the quotes for this change, so ignored.')
                 c.due_phrase = None
+            elif trusted and (w := next(filter(None, (checks.know_date(c.due_phrase, q) for q in c.quotes)), None)):
+                p.flags.append(f'Due "{c.due_phrase}" comes from "{w}", which says when they will know more, '
+                               'not when the work is due, so ignored.')
+                c.due_phrase = None
             else:
                 p.due_date = checks.due_date(c.due_phrase, t.day)
                 said = [q for q in c.quotes if checks.quote_found(c.due_phrase, [("", q)])]
+                lines = {n for q in said for n in checks.turns_with(q, t.turns)}
+                if trusted and (s := next(filter(None, (checks.other_party(c.due_phrase, t.turns[n][1])
+                                                        for n in sorted(lines))), None)):
+                    p.flags.append(f'Due "{c.due_phrase}" is from a sentence about someone outside the team: '
+                                   f'"{s}". Check it is this item\'s date, not theirs.')
                 owners = c.owners if c.owners is not None else (item.owners if item else [])
                 if trusted and owners and not any(set(owners) & _by_or_about(q, t, people) for q in said):
                     p.flags.append(f'Due "{c.due_phrase}" comes from a line not said by or naming '
                                    f'{", ".join(owners)}. Check it is about this item.')
-                for n in {n for q in said for n in checks.turns_with(q, t.turns)} if trusted else ():
+                for n in lines if trusted else ():
                     due_turns.setdefault(n, []).append(p)
 
         status = c.status or (item.status if item else "open")
@@ -190,6 +212,21 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
             made[p.item_id] = made_item
             if raw.item_id and raw.item_id not in by_id:
                 made.setdefault(raw.item_id, made_item)  # the model's own id for it, if it gave one
+        target = item if c.action == "update" else Item(id=p.item_id, title=c.title, ticket=c.ticket,
+                                                          review_of=c.review_of, created_on=t.day)
+        if trusted and target:
+            words = work_words(f"{target.title} {c.title or ''}", target.ticket or c.ticket, target.review_of, by_id)
+            if not checks.names_work(words, c.quotes):
+                # the lines the quotes come from, and the line before when those do not name it either
+                own = {n for q in c.quotes for n in checks.turns_with(q, t.turns)}
+                if not checks.names_work(words, [t.turns[n][1] for n in own]):
+                    own |= {n - 1 for n in own if n > 0}
+                p.context = [t.turns[n] for n in sorted(own)]
+                if (item and c.status and (c.status in CLOSED) != (item.status in CLOSED)
+                        and not checks.names_work(words, [text for _, text in p.context])):
+                    act = "close" if c.status in CLOSED else "reopen"
+                    p.flags.append(f'Nothing in the quotes or the line before names {item.id} "{item.title}". '
+                                   f'Check this {act} is about {item.id}.')
         if c.title and (_VAGUE_ANYWHERE.search(checks.norm(c.title)) or _VAGUE_LAST.search(checks.without_due(c.title))):
             first = next((n for q in c.quotes for n in checks.turns_with(q, t.turns)), None)
             before = (f' The line before it: "{t.turns[first - 1][0]}: {t.turns[first - 1][1][:80]}".'

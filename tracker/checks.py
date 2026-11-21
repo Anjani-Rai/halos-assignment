@@ -125,3 +125,48 @@ def vague(phrase: str) -> bool:
     m = _DUE.search(norm(phrase))
     return bool(m and m["vague"])
 
+
+# Words too common in titles to say which item a line is about.
+_COMMON = {"the", "and", "for", "with", "from", "into", "about", "off", "out", "after", "before", "fix", "fixes",
+           "bug", "issue", "doc", "docs", "review", "reviews", "send", "work", "task", "item", "thing", "things",
+           "stuff", "update", "new", "old", "make", "check", "look", "feature", "page", "something", "anything",
+           "whatever", "this", "that", "its", "get", "set", "add", "team", "service", "pay", "app"}
+
+
+def topic(text: str) -> set[str]:
+    """The words of a title or ticket that say what the work is: "Hermes staging deploy by Friday"
+    gives hermes, staging, deploy. Common words and date phrases are left out."""
+    return {w for w in re.findall(r"[a-z0-9]+", _DUE.sub(" ", norm(text))) if len(w) > 2 and w not in _COMMON}
+
+
+def names_work(words: set[str], texts: list[str]) -> bool:
+    """True when a text has one of the words, or a longer word with the same start ("deployed"
+    for deploy, "migrate" for migration)."""
+    tokens = {w for x in texts for w in re.findall(r"[a-z0-9]+", norm(x))}
+    return any(w in tokens or (len(w) > 4 and any(x[:5] == w[:5] for x in tokens)) for w in words)
+
+
+def _clauses(text: str, phrase: str) -> list[str]:
+    """The parts of a line, split at sentence ends and at ", but" / ", so", that contain the phrase."""
+    return [c.strip() for c in re.split(r"[.;!?]+|,\s+(?:but|so|and then)\s+", norm(text)) if _within(norm(phrase), c)]
+
+
+# Someone outside the team as the subject of a sentence: their date is not ours ("infra expects the cert
+# tomorrow", "They say the cert will be done tomorrow morning").
+_OTHER_PARTY = re.compile(r"\b(infra|infrastructure|ops|devops|security|legal|support|design|qa|finance|vendors?|"
+                          r"they|them|their|the \w+ team)\b")
+
+
+def other_party(phrase: str, text: str) -> str | None:
+    """The sentence of `text` that has the due phrase and names someone outside the team, or None."""
+    return next((c for c in _clauses(text, phrase) if _OTHER_PARTY.search(c)), None)
+
+
+_KNOW = r"\b(?:know|find out|hear back|have an answer|figure (?:it |this |that )?out|let you know|get back to you|update you)"
+
+
+def know_date(phrase: str, text: str) -> str | None:
+    """The words when the phrase says when someone will know more, not when work is due ("I'll know by
+    tonight"): the phrase within three words after know, find out, hear back and the like."""
+    m = re.search(rf"{_KNOW}\W+(?:[\w']+\W+){{0,3}}?{re.escape(norm(phrase))}(?!\w)", norm(text))
+    return m[0] if m else None

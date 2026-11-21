@@ -77,5 +77,6 @@ class Proposed(BaseModel):
     selected: bool = True
     applicable: bool = True  # false when the change cannot apply at all (unknown item id)
     suggest_close: list[str] = []  # items a flag says may be finished too; the page offers "Close too"
+    context: list[tuple[str, str]] = []  # (speaker, line) the quotes come from, when they do not name the work
     by_lead: bool = False  # added on the review page, not by the model
     original: "Proposed | None" = None  # as the code showed it, kept on the lead's first edit
