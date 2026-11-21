@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 
 from . import checks
-from .apply import apply, edited, fmt_due, next_id
+from .apply import apply, edited, fmt_due, next_id, work_words
 from .cli import HELDOUT, open_tree
 from .models import CLOSED, Change, Item, Proposed, Status
 from .store import Draft, Store, StoreError
@@ -80,6 +80,55 @@ def labels(p: Proposed, b: Item | None, a: Item | None) -> list[str]:
     if p.change.note:
         out.append("Note")
     return out or ["No change"]
+
+
+def said_by(quote: str, t: Transcript | None) -> str | None:
+    """Who said the quote in that day's meeting, when its transcript is there."""
+    return next((sp for sp, text in t.turns if checks.quote_found(quote, [(sp, text)])), None) if t else None
+
+
+def evidence(items: list[Item], s: Store) -> dict[str, dict]:
+    """Each item's history, oldest first, with who said each quote; its latest day with quotes and its
+    latest note: the words behind the item on every later day, not only the day it changed."""
+    meetings: dict[date, Transcript | None] = {}
+
+    def meeting(day: date) -> Transcript | None:
+        if day not in meetings:
+            path = s.transcripts / f"{day}.txt"
+            try:
+                meetings[day] = load(path) if path.exists() else None
+            except TranscriptError:
+                meetings[day] = None
+        return meetings[day]
+
+    out = {}
+    for i in items:
+        rows = [dict(on=e.on, what=e.what, quotes=[(said_by(q, meeting(e.on)), q) for q in e.quotes]) for e in i.history]
+        # a note an update added is already in that day's row; one added on create, or on a seed list, is not
+        rows += [dict(on=n.on, what=f"note: {n.text}", quotes=[]) for n in i.notes
+                 if not any(e.on == n.on and f"note: {n.text}" in e.what for e in i.history)]
+        rows.sort(key=lambda r: r["on"])
+        out[i.id] = dict(rows=rows, last=next((r for r in reversed(rows) if r["quotes"]), None),
+                         note=i.notes[-1] if i.notes else None)
+    return out
+
+
+def unused_lines(d: Draft, t: Transcript, final: list[Item]) -> set[int]:
+    """Transcript lines that may hold a missed change: no change quotes them, and they name nothing, or
+    name an item no change touches today ("231 is back" with no reopen; "the schema draft" when the
+    change went to another item). A line naming only items changed today backs those changes and is
+    left out, as are lines under four words ("Okay.")."""
+    used = {n for p in d.proposed for q in p.change.quotes for n in checks.turns_with(q, t.turns)}
+    by_id = {i.id: i for i in [*d.base, *final]}
+    changed = {p.item_id for p in d.proposed}
+    out = set()
+    for n, (_, text) in enumerate(t.turns):
+        if n in used or len(text.split()) < 4:
+            continue
+        named = {i.id for i in final if checks.names_work(work_words(i.title, i.ticket, i.review_of, by_id), [text])}
+        if not named or named - changed:
+            out.add(n)
+    return out
 
 
 def owners_from(text: str, t: Transcript | None) -> list[str]:
@@ -175,7 +224,9 @@ def add_item(d: Draft, form, t: Transcript | None, errors: list[str], warnings: 
     created = [Item(id=p.item_id, title=p.change.title or "", created_on=d.day)
                for p in d.proposed if p.change.action == "create"]
     rev = form.get("new_review_of") or None
-    c = blank("create", title=title, owners=owners_from(form.get("new_owners") or "", t),
+    line = form.get("new_from") or ""
+    quotes = [t.turns[int(line)][1]] if t and line.isdigit() and int(line) < len(t.turns) else []
+    c = blank("create", title=title, owners=owners_from(form.get("new_owners") or "", t), quotes=quotes,
               status=form.get("new_status") if form.get("new_status") in STATUSES else "open",
               due_phrase=due or None, ticket=checks.ticket(raw) if raw else None,
               tentative="new_tentative" in form,
@@ -202,7 +253,8 @@ def close_too(d: Draft, arg: str, msgs: list[str]) -> int | None:
     return len(d.proposed) - 1
 
 
-def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=None, focus=None, warnings=()):
+def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=None, focus=None, warnings=(),
+           add_from: int | None = None):
     d, a, errors = s.draft(day), s.approved(day), list(errors)
     try:
         s.check_can_change(day)
@@ -219,8 +271,7 @@ def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=Non
     if d:
         rows, final = preview(d)
         for n, (p, b, af) in enumerate(rows):
-            quotes = [(next((sp for sp, text in t.turns if checks.quote_found(q, [(sp, text)])), None) if t else None, q)
-                      for q in p.change.quotes]
+            quotes = [(said_by(q, t), q) for q in p.change.quotes]
             still_open = {i.id for i in final if i.status not in CLOSED}
             offers = [(x, x in still_open) for x in p.suggest_close] if p.selected and p.applicable else []
             cards.append(dict(n=n, p=p, before=b, after=af, labels=labels(p, b, af), quotes=quotes, offers=offers,
@@ -228,10 +279,7 @@ def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=Non
                               edits=sorted({WORDS[f] for f in edited(p)})))
     else:
         final = a.items if a else []
-    unused = set()  # transcript lines no change quotes; short ones ("Okay.") are not worth a tag
-    if d and t:
-        used = {n for p in d.proposed for q in p.change.quotes for n in checks.turns_with(q, t.turns)}
-        unused = {n for n, (_, text) in enumerate(t.turns) if n not in used and len(text.split()) >= 4}
+    unused = unused_lines(d, t, final) if d and t else set()
     flagged = [c for c in cards if c["p"].selected and c["p"].applicable and c["p"].flags and not c["edits"]]
     provider = chain.removesuffix("-heldout")
     run = (f"uv run --env-file .env python -m tracker.cli heldout --provider {provider}" if provider != chain
@@ -240,7 +288,8 @@ def render(request: Request, s: Store, chain: str, day: date, errors=(), msg=Non
     return pages.TemplateResponse(request, "day.html", dict(
         chain=chain, day=day, d=d, a=a, t=t, locked=locked, errors=errors, msg=msg, focus=focus,
         warnings=list(warnings),
-        cards=cards, flagged=flagged, unused=unused, tree=open_tree(final), closed=[i for i in final if i.status in CLOSED],
+        cards=cards, flagged=flagged, unused=unused, add_from=add_from if add_from in unused else None,
+        said=evidence(final, s), tree=open_tree(final), closed=[i for i in final if i.status in CLOSED],
         overdue=[i for i in live if i.due_date and i.due_date < day], unowned=[i for i in live if not i.owners],
         base_ids={i.id for i in d.base} if d else set(), base=d.base if d else [], run=run,
         changed_since=bool(a and d and a.proposed != d.proposed),
@@ -259,8 +308,9 @@ def home(request: Request):
 
 
 @app.get("/{chain}/{day}")
-def day_page(request: Request, chain: str, day: date):
-    return render(request, store_for(chain), chain, day)
+def day_page(request: Request, chain: str, day: date, add: int | None = None):
+    """`add` is a transcript line to start a new item from ("Add as item" in Needs attention)."""
+    return render(request, store_for(chain), chain, day, add_from=add)
 
 
 @app.post("/{chain}/{day}")
@@ -302,8 +352,16 @@ async def act(request: Request, chain: str, day: date):
             if errors:
                 errors.append("Not approved: fix the problems above first.")
             else:
+                before = s.next_draft(day)
                 done = s.approve(day, d.proposed)
                 msg = f"Approved {day:%a %d %b}: {sum(i.status not in CLOSED for i in done.items)} open items."
+                if after := s.next_draft(day):
+                    if before is not None and after != before:
+                        msg += (f" {after.day:%a %d %b}'s draft was checked again against this list; your "
+                                "edits there are kept.")
+                    elif (after.base_day, after.base) != s.base_for(after.day):
+                        msg += (f" {after.day:%a %d %b}'s draft was made from the old list and cannot be "
+                                "checked again, so it must be drafted again.")
     except StoreError as e:
         errors.append(str(e))
     msg = msg or (" ".join(msgs) or None)

@@ -398,3 +398,90 @@ def test_transcript_tags_lines_no_change_used(site):
     used = "Sure, I'll do it after standup."  # quoted by the Rohan review in the fixture
     line = text[text.index(used):text.index(used) + len(used) + 12]
     assert "not used" not in line
+
+
+def _section(html: str, start: str, end: str) -> str:
+    return " ".join(page_text(html[html.index(start):html.index(end)]).split())
+
+
+@pytest.fixture
+def two_days(tmp_path, monkeypatch):
+    """Monday approved from the real transcript; Tuesday drafted with its model reply saved."""
+    monkeypatch.chdir(REPO)
+    monkeypatch.setattr(web, "DATA", tmp_path)
+    s = Store("w", root=tmp_path, transcripts=REPO / "transcripts")
+    mon_t, tue_t = (load(REPO / "transcripts" / f"{d.isoformat()}.txt") for d in (MON, TUE))
+    s.save_draft(Draft(day=MON, provider="test", model="test", base_day=None, base=[], proposed=review(reply(
+        change("create", title="Search latency", owners=["Arjun"], status="in_progress", quotes=["Search latency, still on it."]),
+        change("create", title="Export feature", owners=["Priya"], quotes=["I'll start on the export feature."])), [], mon_t)))
+    s.approve(MON)
+    base_day, items = s.base_for(TUE)
+    r = reply(change(item_id="T1", note="cause is the index", quotes=["Turns out it's the index, not the query"]))
+    s.save_draft(Draft(day=TUE, provider="test", model="test", base_day=base_day, base=items,
+                       proposed=review(r, items, tue_t), reply=r))
+    return TestClient(web.app), s
+
+
+def test_list_shows_words_after_the_day(two_days):
+    """Review fix 24: each item on the list shows the latest words said about it, who said them and when,
+    and its latest note, on later days too; History shows every day's change."""
+    client, _ = two_days
+    html = client.get(f"/w/{TUE.isoformat()}").text
+    rows = _section(html, "List after approving", 'id="transcript"')
+    assert "“I'll start on the export feature.” — Priya (Mon 13 Oct)" in rows  # not mentioned on Tuesday
+    assert "Note: cause is the index (Tue 14 Oct)" in rows and "History (2)" in rows
+
+
+def test_seeded_notes_shown_on_list(site):
+    """Review fix 24: a note on a starting list with no history still shows on the list."""
+    client, _ = site
+    assert "Note: Draft written, going to Priya" in _section(client.get(URL).text, "List after approving", 'id="transcript"')
+
+
+def test_approving_again_rechecks_next_day_on_page(two_days):
+    """Review fix 22: approving Monday again from the page checks Tuesday's draft against the new list and
+    says so on both days; Tuesday then approves without a new model run."""
+    client, s = two_days
+    mon = f"/w/{MON.isoformat()}"
+    html = client.get(mon).text
+    data = {**form_fields(html, "review"), f"owners{cards(html)['T2']}": "Priya, Dev"}
+    r = client.post(mon, data={**data, "do": "approve"}, headers=SELF)
+    assert "Tue 14 Oct's draft was checked again against this list" in page_text(r.text)
+    tue = client.get(f"/w/{TUE.isoformat()}").text
+    assert "was approved again after this draft was made" in page_text(tue)
+    assert next(i for i in s.draft(TUE).base if i.id == "T2").owners == ["Priya", "Dev"]
+    client.post(f"/w/{TUE.isoformat()}", data={**form_fields(tue, "review"), "do": "approve"}, headers=SELF)
+    assert s.approved(TUE) is not None
+
+
+FREEZE = "For Falcon, infra wants a schema freeze until Thursday, so we start the migration after that."
+
+
+def test_missed_lines_under_needs_attention(site):
+    """Review fix 25: lines no change uses, naming an item no change touches (the Falcon migration), are
+    listed at the top; a line that backs today's changes is not."""
+    client, _ = site
+    top = _section(client.get(URL).text, "Needs attention", "Today's changes")
+    assert f"Priya: {FREEZE} Add as item" in top
+    assert "Sure, I'll do it after standup." not in top
+
+
+def test_add_missed_line_keeps_its_quote(site):
+    """Review fix 25: "Add as item" starts the new item from the line, kept as its quote; the line then
+    counts as used."""
+    client, s = site
+    n = load(HELDOUT / f"{HELDOUT_DAY.isoformat()}.txt").turns.index(("Priya", FREEZE))
+    html = client.get(f"{URL}?add={n}").text
+    assert FREEZE in _section(html, "Add a missed item", "<h2>Approve</h2>")
+    r = post(client, {**form_fields(html, "add"), "new_title": "Falcon schema freeze until Thursday"}, "add")
+    assert s.draft(HELDOUT_DAY).proposed[-1].change.quotes == [FREEZE]
+    assert FREEZE not in _section(r.text, "Needs attention", "Today's changes")
+
+
+def test_thin_quote_card_shows_full_lines(site):
+    """Review fix 20: "Rohan, can you review it?" does not say what; the card shows the line naming APP-402."""
+    client, _ = site
+    html = client.get(URL).text
+    n = cards(html)["T17"]
+    card = _section(html, f'id="card{n}"', f'id="card{n + 1}"')
+    assert "The full lines they come from" in card and "Sana: Thanks. The APP-402 fix is up." in card
