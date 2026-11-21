@@ -1027,6 +1027,98 @@ every saved reply, no end-of-week or held-out score changes; the counts below ar
 Not checked with a live model: how often the new flags fire on fresh replies. Command, in a
 throwaway copy: `LIVE=1 LLM_PROVIDER=groq uv run --env-file .env pytest -s tests/test_live.py`.
 
+## 49. An answer key per day and a scorer that counts lead fixes
+
+- **The answer key is the list the lead should have after each day**, one file per day in
+  `tests/key/` (the five standups and the held-out Monday), in the same shape as an approved list.
+  It is written from EXPECTED.md and the brief, not from model output. Each item's history holds the
+  transcript words for each day it changes, and each day's event says what kind of change it is:
+  `changed` (a scored field), `note` (only a note, so the item must be touched) or `mentioned` (no
+  change; the words help match it). The Friday file replaces `tests/heldout/base.json`, so the
+  held-out command, the page tests and the scorer start from one list. Two closed reviews (T8, T10)
+  now carry the due dates EXPECTED.md gives them; base.json had none.
+- **A score counts what the lead would have to fix.** For each change the key expects that day:
+  right, partly right (one fix per wrong field) or missed (one fix). Then items the key does not
+  have (one fix each), the same item created twice (one fix each), and edits to items the key leaves
+  alone (one fix per field). Scored fields: owners, status, due date, ticket, review link,
+  tentative. Open and in progress count as the same (§14). Titles and note text are not scored.
+  - Why: the brief asks whether the lead can correct the result quickly, so the unit is the lead's
+    work. It is the same unit as the hand scores (§23, §25) and as the lead edits the app already
+    stores (§29), so a run, a hand score and production use can be compared.
+  - Rejected: the end-of-week open items only (the old report). It misses everything closed during
+    the week and every per-day error that later days hide.
+- **Model items are matched to key items by the sentences they quote**, then by title, then by
+  ticket. A model item quoting any part of a sentence the key quotes matches it, so "Send something
+  tonight" is the kickoff doc and "CSV encoding issue (customer)" is the CSV reply. An item created
+  today whose best match already has an item is a duplicate. Once matched, an item keeps its match
+  for the rest of the week.
+  - Rejected: title patterns (the old `tests/week.py` report), which miss vague titles; matching by
+    whole speaker turn, which merges Dev's Tuesday turn (PAY-231 and the Atlas login).
+- **Two modes.** *Isolated* (the default): each day starts from the key's day before, so a miss on
+  Tuesday does not spoil Wednesday. This is the signal for comparing prompts. *Chained*: the week
+  from each day's own result, as the lead lives it.
+- **One scorer for everything.** `tracker/score.py` serves the `score` command, the saved-reply
+  tests and the live test. The old title-pattern reports (`end_of_week_report`, `heldout_report`)
+  are removed; the asserted matching traps stay. Each reply now records its token counts
+  (`usage` in its saved meta), and the report shows tokens and time next to accuracy, so a change's
+  cost is measured with its gain.
+- **Every run is kept.** `score` writes `runs/<date>-<provider>-<mode>/r<n>/<day>.json` (git ignores
+  `runs/`), `report.txt` and `report.json`. `score --replay <folder>` scores it again with today's
+  code and no model call, so a change to the code checks is measured on old replies for free.
+- **A run with a failed day is left out of that group's averages** and named in the report. Counting
+  it would score every expected change as missed and mix provider failures into model accuracy.
+- **Checked:** the key scores perfect against itself; the key's week with every id renamed scores 33
+  right with nothing extra (matching works without ids); and replaying the saved held-out replies
+  gives exactly the hand scores of §23 (Groq 4 right, 3 partly, 3 missed; Workers AI 5, 3, 2).
+
+**First scored runs (2026-11-21, Groq, gpt-oss-120b, isolated, 3 runs):**
+
+| | Week (33 changes) | Held-out (10 changes) |
+|---|---|---|
+| Right / partly / missed | 26.7 / 3.3 / 3 (26–27 right) | 3 / 4 / 3 (one run; 2 of 3 failed, below) |
+| Extra items / duplicates / wrong edits | 0.3 / 0 / 0 | 0 / 0 / 0 |
+| Lead fixes | 6.7 (6–8) | 7 |
+| Tokens per run | 14,951 in, 13,704 out, of which 11,216 thinking | 3,734 in, 4,315 out |
+| Model time per run, with rate-limit waits | 149s (102–173s) | 42s |
+
+- **Missed in all three runs:** Friday's notes on the onboarding doc and on the Falcon migration. The
+  model made the linked reviews from the same sentences but did not note the parent. Wednesday's
+  "search fix is in review" was missed in 2 of 3 the same way.
+- **Wrong in all three:** Monday's Hermes deploy with no owner (Sana's own blocked deploy; "it's
+  with infra" is not an owner), and Tuesday's review of PAY-231 with no due date ("after this").
+- **Groq refused the held-out day in 2 of 3 runs:** `413 Request too large … on tokens per minute
+  (TPM): Limit 8000, Requested 8049`. The free plan refuses any single request it estimates above
+  8,000 tokens, and does not count it as a retryable limit. The held-out day starts from the
+  longest list (16 items, 3,734 input tokens) and run 1 used 8,049 tokens in all. A longer list
+  would fail every day on Groq's free plan. Not fixed here; see §50.
+
+## 50. Groq is the main provider; Workers AI is the second option; thinking stays at medium
+
+Measured 2026-11-21 in one pass of 13 calls (Monday and Thursday, both providers, each thinking
+level, both ways of setting it):
+
+| | Groq | Workers AI |
+|---|---|---|
+| Writing speed | 461–500 tokens/s | 39–93 tokens/s (median about 56) |
+| One day, default thinking | 5.5s (Mon), 11.6s (Thu) | 48.8s (Mon), 60.7s (Thu) |
+| Output tokens a day | 1,199–4,392, of which thinking 394–3,739 | 1,132–3,914 |
+| Rate limit seen | 8,000 tokens a minute (response headers); a Thursday call used 7,693 | none |
+
+- **Groq is the main provider, Workers AI the second.** Same model, 8–9 times faster writing on
+  Groq. Workers AI is kept for when Groq is down or over a limit. Rejected: removing Workers AI,
+  which leaves no way to run at all when Groq refuses (as in §49).
+- **The 412-second Workers AI day (§25) was two 180-second timeouts**, not slow work. Groq's slow
+  days were 429 waits: one standup uses most of a minute's 8,000 tokens.
+- **Thinking stays at the provider default (medium).** Low thinking cut Groq's tokens by 25–41% and
+  2–8 seconds a day, but broke a matching trap in 3 of 4 low calls (auth given to Priya, Falcon given
+  the export's "Wednesday", Falcon never created) against 0 of 41 checks in 9 default and medium
+  calls. The top-level `reasoning_effort` works on both providers; the `reasoning: {effort}` body
+  field is ignored by Workers AI.
+- **One Workers AI reply padded its JSON with 6,481 blank characters**, about 50 seconds of writing,
+  1 of 13 calls.
+- **Open, for the next step:** what Groq should do when its free plan refuses a day (§49's 413). The
+  options are to switch to Workers AI for that day, to send a shorter list, or a paid plan.
+
 ## Out of scope (time box)
 
 - No login, database or Linear sync. Ticket ids are stored so a sync could be added.

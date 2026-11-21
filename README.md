@@ -31,10 +31,11 @@ drafted it shows "No data/ folder yet" and the command to draft one.
 cp .env.example .env
 ```
 
-Fill in one provider in `.env`: `GROQ_API_KEY` for Groq, or `CLOUDFLARE_API_TOKEN` and
-`CLOUDFLARE_ACCOUNT_ID` for Cloudflare Workers AI. `.env.example` says where each one comes from.
-`.env` is in `.gitignore`, so the key stays out of git. Both providers run the same model,
-gpt-oss-120b.
+Fill in `GROQ_API_KEY` in `.env`. Groq is the main provider. Cloudflare Workers AI
+(`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`) is a second option for when Groq is down or over
+a limit; it runs the same model, gpt-oss-120b, but writes about 8 times slower
+([§50](DECISIONS.md#50-groq-is-the-main-provider-workers-ai-is-the-second-option-thinking-stays-at-medium)).
+`.env.example` says where each key comes from. `.env` is in `.gitignore`, so the key stays out of git.
 
 Draft Monday, then review it on the page:
 
@@ -47,8 +48,9 @@ On the page, open the day. Each change shows its quote from the transcript. Unti
 reject it, edit an owner or a due date, use Drop to remove an item, and press Approve. Then
 draft the next day with the next transcript. Days must be drafted and approved in order. Each item
 on the list shows the latest words said about it, who said them and when, and its history. Use
-`--provider workers_ai` for Cloudflare. A day took 5 to 56 seconds on Groq when this README was
-checked, and once took 412 seconds on Workers AI ([§25](DECISIONS.md#25-clean-week-rerun-2026-11-18-final-prompt-one-run-per-provider)).
+`--provider workers_ai` for Cloudflare. A day takes 4 to 12 seconds of model time on Groq, plus up to
+about 45 seconds of waiting when Groq's 8,000-tokens-a-minute limit is hit, and 25 to 70 seconds on
+Workers AI ([§50](DECISIONS.md#50-groq-is-the-main-provider-workers-ai-is-the-second-option-thinking-stays-at-medium)).
 
 A new transcript goes in `transcripts/`, named by its meeting date (`2025-10-20.txt`), with one
 `Name: what they said` line per speaker turn. A turn may run over several lines, and a leading
@@ -81,6 +83,20 @@ LIVE=1 uv run --env-file .env pytest tests/test_live.py
 ```
 
 It uses the provider in `LLM_PROVIDER` and writes only to a temporary folder.
+
+To measure accuracy and cost, score runs against the answer key (`tests/key/`, the list the lead
+should have after each day):
+
+```
+uv run --env-file .env python -m tracker.cli score --provider groq --runs 3
+uv run python -m tracker.cli score --replay runs/<folder>
+```
+
+The first drafts each day of the key three times, each from the key's day before (`--mode chained`
+runs the week from its own results instead), and prints what the lead would have to fix, with
+tokens and time. Every reply and the report are kept in `runs/`. The second scores a saved run
+again with today's code and no model call
+([§49](DECISIONS.md#49-an-answer-key-per-day-and-a-scorer-that-counts-lead-fixes)).
 
 ## How a day works
 
@@ -172,20 +188,31 @@ What they check ([§36–39](DECISIONS.md#36-tests-come-from-the-spec-not-from-t
 - **Model failures:** a local fake server returns a reply that does not fit the schema, or 503s, so
   the real retry path runs with no network, and the saved list stays unchanged.
 
+- **The scorer:** the answer key agrees with EXPECTED.md (33 changes in the week, 10 held-out) and
+  with its transcripts, scores perfect against itself and with every id renamed, and charges a list
+  with six known mistakes exactly six fixes.
+
 Expected values come from DECISIONS.md, EXPECTED.md and the brief, not from reading the code
-([§36](DECISIONS.md#36-tests-come-from-the-spec-not-from-the-code)). The end-of-week list and the
-held-out meeting are printed as scores, not asserted, because asserting them would turn a recorded
-model miss into a test failure
+([§36](DECISIONS.md#36-tests-come-from-the-spec-not-from-the-code)). The saved weeks and held-out
+days are scored by the same scorer as the `score` command and printed, not asserted, because
+asserting them would turn a recorded model miss into a test failure
 ([§39](DECISIONS.md#39-saved-reply-and-live-tests)).
 
 ## What was run, and the results
 
-**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 213 passed, 1 skipped.
-End of week, each provider gets 7 of the answer key's 9 open items right, 1 wrong and 1 missed, and
-leaves 1 open item the key has as done: Groq never closes Priya's PAY-231 review, Workers AI never
-closes the search item. Open and in progress count as the same
+**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 219 passed, 1 skipped.
+Scored by `tracker/score.py`, the saved week run day after day: Groq 24 of 33 changes right, 5
+partly, 4 missed, 12 lead fixes; Workers AI 23 right, 8 partly, 2 missed, 13 lead fixes. Held-out:
+Groq 4 right, 3 partly, 3 missed; Workers AI 5, 3, 2, the same as the hand scores of §23. Open and
+in progress count as the same
 ([§14](DECISIONS.md#14-scoring-the-live-test-open-vs-in-progress-is-a-minor-difference)).
-Held-out traps: Groq 4 of 6, Workers AI 5 of 6.
+
+**Scored runs on Groq** (3 runs, each day from the key's day before, 2026-11-21): the week averaged
+26.7 of 33 changes right (26 to 27), 3.3 partly, 3 missed, 0.3 extra items, no duplicates, 6.7 lead
+fixes, using about 15,000 input and 13,700 output tokens per week. Groq refused the held-out day in
+2 of 3 runs as too large for its free plan's 8,000 tokens a minute; the run that finished got 3
+right, 4 partly, 3 missed
+([§49](DECISIONS.md#49-an-answer-key-per-day-and-a-scorer-that-counts-lead-fixes)).
 
 The live runs below give only the first number, the key's open items right; their open items the
 key does not have were not counted.
@@ -284,10 +311,11 @@ Time before the first commit is not counted.
 
 | Path | What |
 |---|---|
-| `tracker/cli.py` | Command line: draft a day, the week or the held-out meeting |
+| `tracker/cli.py` | Command line: draft a day, the week or the held-out meeting; score runs |
+| `tracker/score.py` | Scores runs against the answer key, counting lead fixes, tokens and time |
 | `tracker/web.py`, `tracker/templates/` | Review page |
 | `tracker/llm.py`, `tracker/prompt.py` | Provider client and prompt |
 | `tracker/checks.py`, `tracker/apply.py` | Owner, date, ticket and quote checks; applying changes |
 | `tracker/store.py`, `tracker/models.py` | Day files in `data/`; item and change shapes |
 | `transcripts/` | The five standups |
-| `tests/` | Tests; `tests/replies/` saved replies; `tests/heldout/` the held-out meeting |
+| `tests/` | Tests; `tests/replies/` saved replies; `tests/heldout/` the held-out meeting; `tests/key/` the answer key, one list per day |

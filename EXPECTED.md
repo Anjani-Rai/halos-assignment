@@ -1,5 +1,8 @@
 # Expected results, written by hand
 
+`tests/key/` holds the same answer as one list per day, which `tracker/score.py` scores runs
+against (DECISIONS §49).
+
 The answer key for the five transcripts. The live test compares the model's output to this.
 Decided: items can have several owners; things raised with no owner are kept and flagged; work
 already done when first mentioned is recorded as done; calendar events are not items.
@@ -117,7 +120,7 @@ staging deploy, review of the search PR, CSV reply.
 ## Held-out: Monday 20 Oct (never used to tune the prompt)
 
 Transcript `tests/heldout/2025-10-20.txt`, written before the prompt changes it is meant to
-check. It starts from this answer key's Friday list (`tests/heldout/base.json`, ids T1–T16), not
+check. It starts from this answer key's Friday list (`tests/key/2025-10-17.json`, ids T1–T16), not
 from each model's own Friday, so earlier misses do not spoil this score.
 
 | Change | Item | Detail | Evidence |
