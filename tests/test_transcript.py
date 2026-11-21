@@ -67,6 +67,14 @@ def test_empty_day_carries_forward(tmp_path):
     ("Dev: Hi.\nUpdate: PAY-231 is done.", [("Dev", "Hi. Update: PAY-231 is done.")]),  # a label
     ("Dev: Hi.\nPAY-231: fixed.", [("Dev", "Hi. PAY-231: fixed.")]),                    # a ticket
     ("Dev: Hi.\nDev's PR: merged.", [("Dev", "Hi. Dev's PR: merged.")]),               # a possessive
+    # Review fix 23: the formats that gave words to the speaker above
+    ("Arjun Mehta  10:02 AM\nI'll take the export.\nPriya  10:03 AM\nSure.",            # Zoom
+     [("Arjun Mehta", "I'll take the export."), ("Priya", "Sure.")]),
+    ("Arjun  0:05\nHi,\nall.\nDev  0:12\nHey.", [("Arjun", "Hi, all."), ("Dev", "Hey.")]),  # Otter
+    ("Arjun: Hi.\nPriya:I'll take it.", [("Arjun", "Hi."), ("Priya", "I'll take it.")]),    # no space after the colon
+    ("Arjun:\nI'll take it.", [("Arjun", "I'll take it.")]),                              # name on its own line
+    ("Arjun: See\nhttps://x.example/doc", [("Arjun", "See https://x.example/doc")]),       # a link
+    ("Arjun: Lunch moved.\nLunch 12:30", [("Arjun", "Lunch moved. Lunch 12:30")]),        # a time, not a Zoom file
 ])
 def test_transcript_formats(tmp_path, text, turns):
     """Review fix 8, §46: common transcript formats load; a line that cannot open a turn joins the last one."""
@@ -81,4 +89,14 @@ def test_possible_speaker_refused(tmp_path, line):
     path = tmp_path / "2025-10-13.txt"
     path.write_text(f"Arjun: hi\n{line}\n")
     with pytest.raises(TranscriptError, match="line 2"):
+        load(path)
+
+
+@pytest.mark.parametrize("text", ["SPEAKER 1: Hello", "Arjun: Hi.\nSpeaker A: I'll take it.", "Arjun: Hi.\nspeaker2: Me too."])
+def test_numbered_speaker_refused(tmp_path, text):
+    """Review fix 23: a numbered label names nobody, so its words would go to no one or the line above. It is
+    refused, naming the line."""
+    path = tmp_path / "2025-10-13.txt"
+    path.write_text(text + "\n")
+    with pytest.raises(TranscriptError, match=f"line {text.count(chr(10)) + 1}.*numbered speaker label"):
         load(path)
