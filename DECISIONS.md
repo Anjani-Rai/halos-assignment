@@ -3,10 +3,12 @@
 Each entry: what we chose, what else we considered, and why.
 
 Sections are in the order they were decided, and a later one can change an earlier one. Where that
-happened, the earlier section says so and names the later one. The current design in brief: §1–§5
-(model proposes, code checks, lead approves), §10 (create and update only), §17 and §43–§48 (the
-code checks), §19 (reviews), §28–§34 (the page), §36–§39 (tests). Dated runs (§8, §13, §18, §23,
-§25, §40, §45, §47) record that run only.
+happened, the earlier section says so and names the later one.
+
+**To read the design quickly:** §1–§5 (where the difficulty is; the model proposes, code checks,
+the lead approves), §10 (create and update only), §19 (reviews), §48 (what the lead sees), §49 (the
+answer key and scorer), §50–§51 (providers). The rest: §17 and §43–§48 (each code check), §28–§34
+(the page), §36–§39 (tests). Dated runs (§8, §13, §18, §23, §25, §40, §45, §47) record that run only.
 
 ## 1. Where the difficulty is
 
@@ -1140,6 +1142,29 @@ level, both ways of setting it):
   provider not falling back again) and in a draft's saved reply. **Not seen live:** the held-out
   request sent after it was built was answered by Groq (8,059 tokens, 10.8 seconds); Groq's refusal
   depends on its own estimate, which varied between runs.
+
+## 52. A demo week from saved replies, and the prompt and these transcripts
+
+From an outside review of the submission (2026-11-21), which found the page could not be tried
+without a key, the prompt partly fitted to the five transcripts, and the time report unclear.
+
+- **The demo command drafts the next day of `data/demo` from the saved Groq replies**
+  (`tests/replies/groq`), with no key and no model call. It uses the same draft path as a model run
+  (`draft_day` with `saved=`), so the page shows exactly what a real run shows, flags included. It
+  drafts one day at a time and never overwrites a waiting draft, so the lead's edits on the page
+  are safe and the days keep the usual order. The page's "no draft" hint and the home page name it.
+  - Rejected: approving Monday to Thursday in advance (the reviewer could not try approving those
+    days); a "draft" button on the page (§30: the page never drafts).
+- **The prompt and these transcripts.** Several prompt rules were added after seeing the five
+  standups, and their examples restate those lines with the names changed ("I'll send something
+  tonight" verbatim; "today, tomorrow at worst"; "we said the 3rd, but the 5th is more realistic";
+  "Ana went over it"; "everything of Ben's moves to Tuesday"). The rules are general, but they were
+  found and phrased on these meetings, so the five-day score flatters them; the held-out meeting
+  (§20) is the honest number. Not changed now: rewriting the examples would need fresh runs to
+  show it does no harm, and would be more tuning on the same five meetings. The next step is new
+  meetings the prompt never saw, written by someone else and scored with `score`.
+- **Time:** the README's "Time spent" no longer gives a figure for the later sessions, which were
+  not timed and took more than the 30–45 minutes first written there.
 
 ## Out of scope (time box)
 

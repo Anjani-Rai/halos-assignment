@@ -8,6 +8,31 @@ wrong and approves. The approved list is where the next day starts.
 Design choices, with what was rejected and why, are in [DECISIONS.md](DECISIONS.md). The
 hand-written answer key for the five transcripts and one extra meeting is in [EXPECTED.md](EXPECTED.md).
 
+## Start here
+
+- **Try it with no key:** `uv sync`, then `uv run python -m tracker.cli demo` and
+  `uv run python -m tracker.web`. The demo drafts Monday from a saved real model reply; review and
+  approve it at http://127.0.0.1:8000, then run `demo` again for the next day.
+- **Five choices that matter:**
+  1. The model proposes changes; code applies them, so unmentioned items carry forward untouched
+     ([§2](DECISIONS.md#2-the-model-proposes-changes-code-applies-them)).
+  2. Code owns every field a rule can check: quotes must be in the transcript, owners must be on the
+     team or speaking, dates are worked out from the spoken words
+     ([§3](DECISIONS.md#3-code-owns-every-field-a-rule-can-check)).
+  3. Unclear speech is never guessed: no owner when nobody commits, vague dates stay as words, "I
+     might" is tentative ([§4](DECISIONS.md#4-uncertainty)).
+  4. The lead reviews changes, not a list: each card shows its quotes and flags, and lines no change
+     used are listed at the top
+     ([§48](DECISIONS.md#48-review-fixes-batch-5-evidence-on-the-list-re-checking-the-next-day-missed-lines-other-teams-dates)).
+  5. Accuracy is measured in lead fixes against a day-by-day answer key
+     ([§49](DECISIONS.md#49-an-answer-key-per-day-and-a-scorer-that-counts-lead-fixes)).
+- **Honest results:** on the five standups, about 26.7 of 33 changes right and 6.7 lead fixes a week
+  (3 runs). On a sixth meeting never used to tune the prompt, 3 to 5 of 10 fully right across the runs scored so far. The prompt
+  was tuned on the five standups, so the sixth is the number to trust (see "The prompt and these
+  transcripts" below).
+- **Time:** the brief's 3–5 hours were spent on 18 November (3h45); later sessions, past the time
+  box, added review fixes and the scorer (see "Time spent").
+
 ## Run it
 
 Needs [uv](https://docs.astral.sh/uv/) (tested with 0.13.0) and Python 3.13, which the project pins
@@ -21,9 +46,18 @@ uv run pytest
 uv run python -m tracker.web
 ```
 
-`uv run pytest` gives 223 passed and 1 skipped in about 10 seconds. The skipped one is the live
-test, which calls a real model. The page is at http://127.0.0.1:8000. Until a day has been
-drafted it shows "No data/ folder yet" and the command to draft one.
+`uv run pytest` gives 224 passed and 1 skipped in about 10 seconds. The skipped one is the live
+test, which calls a real model. The page is at http://127.0.0.1:8000.
+
+To review days on the page with no key, draft the demo week from saved real Groq replies, one day
+at a time ([§52](DECISIONS.md#52-a-demo-week-from-saved-replies-and-the-prompt-and-these-transcripts)):
+
+```
+uv run python -m tracker.cli demo
+```
+
+It drafts the next day of `data/demo` with no model call. Approve it on the page, then run it again
+for the next day. A draft waiting for review is never overwritten.
 
 ### With a key: draft days and review them
 
@@ -161,6 +195,13 @@ Each links to its section in DECISIONS.md.
   ([§51](DECISIONS.md#51-workers-ai-answers-when-groq-refuses-or-fails-a-day)). Gemini's free key failed
   most runs ([§22](DECISIONS.md#22-groq-replaces-gemini)); a local qwen3:14b on Ollama got 18 of 33
   changes right against 25 ([§26](DECISIONS.md#26-ollama-removed)).
+- **The prompt and these transcripts.** Several prompt rules were written after seeing the five
+  standups and restate their lines with the names changed: "I'll send something tonight" (verbatim),
+  "today, tomorrow at worst", "we said the 3rd, but the 5th is more realistic", "Ana went over it",
+  "everything of Ben's moves to Tuesday". The rules are general, but their examples are these
+  meetings, so the five-day score flatters the prompt. How much survives on another team is
+  measured only by new meetings the prompt never saw: one so far (below), and more is the first
+  next step ([§52](DECISIONS.md#52-a-demo-week-from-saved-replies-and-the-prompt-and-these-transcripts)).
 - **A held-out meeting gives the honest score**
   ([§20](DECISIONS.md#20-a-held-out-meeting-for-an-honest-score)). The prompt was fixed against the
   five transcripts, so their score flatters it. `tests/heldout/2025-10-20.txt` was written before
@@ -203,7 +244,7 @@ asserting them would turn a recorded model miss into a test failure
 
 ## What was run, and the results
 
-**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 223 passed, 1 skipped.
+**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 224 passed, 1 skipped.
 Scored by `tracker/score.py`, the saved week run day after day: Groq 24 of 33 changes right, 5
 partly, 4 missed, 12 lead fixes; Workers AI 23 right, 8 partly, 2 missed, 13 lead fixes. Held-out:
 Groq 4 right, 3 partly, 3 missed; Workers AI 5, 3, 2, the same as the hand scores of §23. Open and
@@ -273,8 +314,6 @@ which four live weeks in one day used up ([§22](DECISIONS.md#22-groq-replaces-g
 
 - No login, database or Linear sync; one team and one user at a time; no embeddings or second
   matching pass ([Out of scope](DECISIONS.md#out-of-scope-time-box)).
-- The page shows no days until one is drafted with a key, because drafts come from the command
-  line.
 - A duplicate under a new name ("Export feature" and "Atlas export") is not flagged by code; only
   the model's matching catches it ([§17](DECISIONS.md#17-phase-3-build-choices)).
 - A ticket or review link set on an earlier day cannot be removed on the page
@@ -304,15 +343,21 @@ is larger than the run-to-run spread (6 to 8 lead fixes a week).
   infra" is not an owner), and Priya's "after this" gives her review no date.
 - **Updates to items named indirectly** on the held-out day ("the schema draft"), measured on
   Workers AI, which takes the held-out day's size.
-- A demo chain built from the saved replies, so the page can be tried without a key.
+- **New meetings the prompt never saw**, written by someone else, scored with `score`, to measure
+  how much of the prompt is general and how much fits these five standups.
 - A "draft this day" button on the page, with a background job and progress
   ([§30](DECISIONS.md#30-the-page-does-not-run-the-model)).
 
 ## Time spent
 
-About 4 hours 15 minutes to 4 hours 30 minutes in all, built with a coding agent: 3 hours 45
-minutes on 18 November, from the first commit at 12:58 to the first README at 16:45, and about 30 to
-45 minutes more on 19 and 21 November (phase 7). Time before the first commit is not counted.
+Built with a coding agent. The submission within the brief's time box took 3 hours 45 minutes on
+18 November, from the first commit at 12:58 to the first README at 16:45 (phases 2–6). Planning
+before the first commit (phase 1: the decisions, the answer key and the transcripts) was not timed.
+
+Phase 7 came later, on 19 and 21 November, and is past the five-hour box. It was not timed either;
+it took more than the 30–45 minutes first written here. Its work was review fixes, the scorer, the
+provider measurement, the switch to Workers AI and the demo. The 19 November commits were made
+together after the work (10:53–10:54), not as it went; the history was not rewritten.
 
 | Phase | Time |
 |---|---|
@@ -322,13 +367,13 @@ minutes on 18 November, from the first commit at 12:58 to the first README at 16
 | 4. Review page | 14:57–15:16 |
 | 5. Tests | 15:24–16:03 |
 | 6. README, `.env.example`, the emptied-owner flag | 16:07–16:45 |
-| 7. Review fixes ([§43–§48](DECISIONS.md#43-review-fixes-batch-1-quotes-owners-dates-duplicates-glossary)), the scorer and answer key ([§49](DECISIONS.md#49-an-answer-key-per-day-and-a-scorer-that-counts-lead-fixes)), the provider measurement ([§50](DECISIONS.md#50-groq-is-the-main-provider-workers-ai-is-the-second-option-thinking-stays-at-medium)), the switch to Workers AI ([§51](DECISIONS.md#51-workers-ai-answers-when-groq-refuses-or-fails-a-day)) | about 30–45 min, 19 and 21 Nov |
+| 7. Review fixes ([§43–§48](DECISIONS.md#43-review-fixes-batch-1-quotes-owners-dates-duplicates-glossary)), the scorer and answer key ([§49](DECISIONS.md#49-an-answer-key-per-day-and-a-scorer-that-counts-lead-fixes)), the provider measurement ([§50](DECISIONS.md#50-groq-is-the-main-provider-workers-ai-is-the-second-option-thinking-stays-at-medium)), the switch to Workers AI ([§51](DECISIONS.md#51-workers-ai-answers-when-groq-refuses-or-fails-a-day)), the demo ([§52](DECISIONS.md#52-a-demo-week-from-saved-replies-and-the-prompt-and-these-transcripts)) | not timed, 19 and 21 Nov, past the time box |
 
 ## Where things are
 
 | Path | What |
 |---|---|
-| `tracker/cli.py` | Command line: draft a day, the week or the held-out meeting; score runs |
+| `tracker/cli.py` | Command line: draft a day, the week or the held-out meeting; score runs; the no-key demo |
 | `tracker/score.py` | Scores runs against the answer key, counting lead fixes, tokens and time |
 | `tracker/web.py`, `tracker/templates/` | Review page |
 | `tracker/llm.py`, `tracker/prompt.py` | Provider client and prompt |
