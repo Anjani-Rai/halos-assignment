@@ -43,10 +43,10 @@ def draft_day(path: Path, provider: str, store: Store) -> Draft:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps({"meta": meta, "reply": json.loads(r.raw)}, indent=1) + "\n")
     reply = Reply.model_validate_json(r.raw)
-    d = Draft(day=t.day, provider=provider, model=r.model, base_day=base_day, base=base,
+    d = Draft(day=t.day, provider=r.provider, model=r.model, base_day=base_day, base=base,
               proposed=review(reply, base, t), reply=reply)
     store.save_draft(d)
-    print(f"\n== {t.day:%a %d %b} · {r.model} · {r.seconds}s · {len(d.proposed)} changes")
+    print(f"\n== {t.day:%a %d %b} · {r.provider} {r.model} · {r.seconds}s · {len(d.proposed)} changes")
     return d
 
 

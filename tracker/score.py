@@ -287,6 +287,7 @@ def totals(scores: list[DayScore], runs: list[DayRun]) -> dict:
         "tokens_out": sum(u.get("completion_tokens", 0) for u in usage),
         "thinking": sum((u.get("completion_tokens_details") or {}).get("reasoning_tokens", 0) for u in usage),
         "seconds": round(sum(r.meta.get("seconds", 0) for r in runs if not r.error), 1),
+        "fallback_days": sum(bool(r.meta.get("fallback_from")) for r in runs if not r.error),
     }
 
 
@@ -322,6 +323,8 @@ def report(results: list[tuple[list[DayRun], list[DayScore]]], key, title: str) 
         lines.append(f"  right {g['right']} · partly {g['partly']} · missed {g['missed']}  |  extra items "
                      f"{g['extra']} · duplicates {g['duplicates']} · wrong edits {g['wrong_edits']}  |  "
                      f"lead fixes {g['lead_fixes']}")
+        if any(t["fallback_days"] for t in whole):
+            lines.append(f"  days answered by the second provider: {g['fallback_days']}")
         if any(t["tokens_in"] for t in whole):
             lines.append(f"  tokens in {g['tokens_in']} · out {g['tokens_out']} (thinking {g['thinking']}) · "
                          f"model time {g['seconds']}s")

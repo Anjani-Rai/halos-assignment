@@ -17,10 +17,9 @@ def completion(content: str, finish: str = "stop") -> bytes:
                                     "message": {"role": "assistant", "content": content}}]}).encode()
 
 
-@pytest.fixture
-def fake(monkeypatch):
-    """A local stand-in for the provider: answers every request the same way and counts them."""
-    state = {"status": 200, "body": b"", "count": 0}
+def serve(monkeypatch, name: str, status: int = 200, body: bytes = b""):
+    """A local stand-in for provider `name`: answers every request the same way and counts them."""
+    state = {"status": status, "body": body, "count": 0}
 
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self):
@@ -36,11 +35,57 @@ def fake(monkeypatch):
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    monkeypatch.setitem(llm.PROVIDERS, "fake",
-                        llm.Provider(f"http://127.0.0.1:{server.server_port}/v1", "m", "FAKE_KEY", 5))
-    monkeypatch.setenv("FAKE_KEY", "test")
+    key = f"{name.upper()}_KEY"
+    monkeypatch.setitem(llm.PROVIDERS, name, llm.Provider(f"http://127.0.0.1:{server.server_port}/v1", "m", key, 5))
+    monkeypatch.setenv(key, "test")
+    return state, server
+
+
+@pytest.fixture
+def fake(monkeypatch):
+    state, server = serve(monkeypatch, "fake")
     yield state
     server.shutdown()
+
+
+TOO_LARGE = b'{"error": {"message": "Request too large for model on tokens per minute (TPM): Limit 8000, Requested 8049"}}'
+
+
+@pytest.fixture
+def pair(monkeypatch):
+    """A main provider that refuses with Groq's 413, and a second one that answers."""
+    main, s1 = serve(monkeypatch, "main", 413, TOO_LARGE)
+    backup, s2 = serve(monkeypatch, "backup", 200, completion('{"changes": []}'))
+    monkeypatch.setitem(llm.FALLBACK, "main", "backup")
+    yield main, backup
+    s1.shutdown()
+    s2.shutdown()
+
+
+def test_refused_day_goes_to_the_second_provider(pair):
+    """§51: Groq's free plan refuses a request over 8,000 tokens a minute, and does not retry it. The day
+    is then asked of the second provider, and the reply records who answered and why."""
+    main, backup = pair
+    r = llm.call("main", "system", "user")
+    assert (main["count"], backup["count"]) == (1, 1)
+    assert r.provider == "backup" and "413" in r.fallback_from
+    assert r.meta()["provider"] == "backup" and "Limit 8000" in r.meta()["fallback_from"]
+
+
+def test_both_providers_failing_names_both(pair):
+    """§51: when the second provider fails too, the error says what each one did, and nothing is saved."""
+    main, backup = pair
+    backup["status"], backup["body"] = 400, b'{"error": "bad request"}'
+    with pytest.raises(llm.LLMError, match=r"main request failed.*413.*Then backup: backup request failed.*400"):
+        llm.call("main", "system", "user")
+
+
+def test_second_provider_has_no_fallback(fake):
+    """§51: only the main provider falls back, so a failing second provider fails once, not in a loop."""
+    fake["status"], fake["body"] = 400, b'{"error": "bad request"}'
+    with pytest.raises(llm.LLMError):
+        llm.call("fake", "system", "user")
+    assert fake["count"] == 1
 
 
 @pytest.mark.parametrize("content, finish", [
@@ -109,6 +154,22 @@ def test_reply_saved_in_data_not_tests(tmp_path, monkeypatch):
     cli.draft_day(path, "groq", s)
     assert (s.dir / f"{MON}.reply.json").exists()
     assert not (tmp_path / "tests").exists()
+
+
+def test_draft_records_who_answered(tmp_path, monkeypatch):
+    """§51: a day answered by the second provider says so in its draft and its saved reply."""
+    tr = tmp_path / "tr"
+    tr.mkdir()
+    path = tr / f"{MON.isoformat()}.txt"
+    path.write_text("Priya: I'll start on the export feature.\n")
+    raw = reply(change("create", title="Export feature", owners=["Priya"], quotes=["I'll start on the export feature."]))
+    monkeypatch.setattr(llm, "call", lambda *a: llm.Result(raw, raw.model_dump_json(), "workers_ai", "m", 1.0, 1,
+                                                           fallback_from="groq request failed: 413"))
+    monkeypatch.setattr(cli, "REPLIES", None)
+    s = Store("groq", root=tmp_path / "data", transcripts=tr)
+    d = cli.draft_day(path, "groq", s)
+    saved = json.loads((s.dir / f"{MON}.reply.json").read_text())["meta"]
+    assert d.provider == "workers_ai" and saved["fallback_from"] == "groq request failed: 413"
 
 
 def test_run_without_file_is_a_usage_error(monkeypatch, capsys):

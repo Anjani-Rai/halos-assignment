@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -27,6 +28,12 @@ PROVIDERS = {
 }
 
 
+# The provider asked when the first one refuses or fails a day: Groq's free plan refuses a request over
+# 8,000 tokens a minute, which a long list reaches (DECISIONS §49, §51).
+FALLBACK = {"groq": "workers_ai"}
+log = logging.getLogger(__name__)
+
+
 class LLMError(RuntimeError):
     pass
 
@@ -40,10 +47,12 @@ class Result:
     seconds: float
     attempts: int
     usage: dict = field(default_factory=dict)  # the provider's token counts: prompt_tokens, completion_tokens, and reasoning_tokens where given
+    fallback_from: str | None = None  # why the first provider was not used, when this one answered instead
 
     def meta(self) -> dict:
-        """What is saved next to each reply: which model, how long, how many tries, how many tokens."""
-        return {"model": self.model, "seconds": self.seconds, "attempts": self.attempts, "usage": self.usage}
+        """What is saved next to each reply: who answered, how long, how many tries, how many tokens."""
+        return {"provider": self.provider, "model": self.model, "seconds": self.seconds, "attempts": self.attempts,
+                "usage": self.usage, **({"fallback_from": self.fallback_from} if self.fallback_from else {})}
 
 
 def _schema() -> dict:
@@ -51,6 +60,23 @@ def _schema() -> dict:
 
 
 def call(name: str, system: str, user: str) -> Result:
+    """Asks `name`; if it refuses or fails after its own retries, asks its FALLBACK provider instead."""
+    try:
+        return _ask(name, system, user)
+    except LLMError as first:
+        backup = FALLBACK.get(name)
+        if backup is None:
+            raise
+        log.warning("%s failed (%s); asking %s instead", name, str(first)[:200], backup)
+        try:
+            r = _ask(backup, system, user)
+        except LLMError as second:
+            raise LLMError(f"{first} Then {backup}: {second}") from second
+        r.fallback_from = f"{first}"[:300]
+        return r
+
+
+def _ask(name: str, system: str, user: str) -> Result:
     if name not in PROVIDERS:
         raise LLMError(f"Unknown LLM_PROVIDER {name!r}; use one of {', '.join(PROVIDERS)}")
     p = PROVIDERS[name]
