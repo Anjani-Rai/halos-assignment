@@ -107,8 +107,10 @@ MINOR = {"open", "in_progress"}  # §14: open vs in progress is a minor differen
 
 
 def end_of_week_report(week: list[Day]) -> str:
+    """The answer key's open items found right, wrong or missed, and every other open item, which is
+    wrong too: work the key has as done, or never had. Open and in progress count as the same (§14)."""
     open_items = [i for i in week[-1].items if i.status not in CLOSED]
-    lines, right, used = [], 0, set()
+    lines, right, wrong_n, missed, swapped, used = [], 0, 0, 0, 0, set()
 
     def score(i, owners, due, status):
         wrong = [f for f, ok in [("owners", set(i.owners) == owners), ("due", i.due_date == due)] if not ok]
@@ -119,18 +121,23 @@ def end_of_week_report(week: list[Day]) -> str:
         found = [i for i in open_items if re.search(rx, f"{i.title} {i.ticket or ''}", re.I) and is_review(i) == rev]
         if not found:
             lines.append(f"  missed  {label}")
+            missed += 1
             continue
         # The best match counts; a second match (e.g. a calendar event) is listed with the other open items.
         i = min(found, key=lambda i: len(score(i, owners, due, status)[0]))
         used.add(i.id)
         wrong, minor = score(i, owners, due, status)
         right += not wrong
+        wrong_n += bool(wrong)
+        swapped += minor and not wrong
         note = ", ".join(f"wrong {w}" for w in wrong) + (" (status minor)" if minor else "")
         lines.append(f"  {'right ' if not wrong else 'wrong '}  {label}: {i.id} {i.owners} {i.due_date} "
                      f"{i.status} {note}".rstrip())
     other = [i for i in open_items if i.id not in used]
-    lines += [f"  other   {i.id} {i.title} {i.owners} {i.status}" for i in other]
-    return "\n".join([f"End of week: {right} of {len(END_OF_WEEK)} right, {len(other)} other open items"] + lines)
+    lines += [f"  extra   {i.id} {i.title} {i.owners} {i.status}" for i in other]
+    head = (f"End of week: {right} of the key's {len(END_OF_WEEK)} open items right ({swapped} with open and in "
+            f"progress swapped), {wrong_n} wrong, {missed} missed; {len(other)} open item(s) the key does not have")
+    return "\n".join([head] + lines)
 
 
 def heldout_report(chain: str) -> str:
