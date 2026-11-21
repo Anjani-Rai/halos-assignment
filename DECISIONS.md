@@ -1163,8 +1163,10 @@ without a key, the prompt partly fitted to the five transcripts, and the time re
   (§20) is the honest number. Not changed now: rewriting the examples would need fresh runs to
   show it does no harm, and would be more tuning on the same five meetings. The next step is new
   meetings the prompt never saw, written by someone else and scored with `score`.
-- **Time:** the README's "Time spent" no longer gives a figure for the later sessions, which were
-  not timed and took more than the 30–45 minutes first written there.
+- **Time:** the README's "Time spent" now gives clock time measured from the agent's session
+  timestamps: about 4h25 on 18 November up to the first README (planning included), and about 3
+  to 4 hours after it (18 November evening, 19 and 21 November), not the 30–45 minutes first
+  written. The batch-5 fixes (§48) were done outside those sessions and are not in the total.
 
 ## Out of scope (time box)
 

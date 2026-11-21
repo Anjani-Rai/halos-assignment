@@ -163,11 +163,22 @@ show a gain larger than the run-to-run spread (6 to 8 lead fixes a week).
 
 ## Time spent
 
-Built with a coding agent. The submission within the brief's time box took **3 hours 45 minutes on
-18 November** (first commit 12:58, first README 16:45). Planning before the first commit was not
-timed. Later sessions on 19 and 21 November, **past the five-hour box and not timed**, added the
-review fixes, the scorer, the provider measurement, the switch to Workers AI and the demo. The 19
-November commits were made together after the work; the history was not rewritten.
+Built with a coding agent. Measured from the agent's session timestamps as clock time when any
+session was active (several ran in parallel), not counting idle gaps over 10 minutes; a 20-minute
+rule gives the upper figure. Reading done away from the agent is not counted.
+
+| When | Work | Time |
+|---|---|---|
+| 18 Nov, 12:21–16:47 | Planning from the brief, then the build, tests and first README | about 4h25 (4h40) |
+| 18 Nov evening | Review fixes and live runs | about 1h05 (1h35) |
+| 19 Nov morning | The rest of those review fixes, committed together at 10:53 | about 30 min (40 min) |
+| 21 Nov evening | Provider measurement, the scorer, the switch to Workers AI, the demo, this README | about 1h25 (1h40) |
+| **Total** | | **about 7h25 (8h35)** |
+
+The first submission fits the brief's five-hour box; the later work, about 3 to 4 hours, is past it.
+The batch of review fixes committed on 21 November at 19:38–19:45
+([§48](DECISIONS.md#48-review-fixes-batch-5-evidence-on-the-list-re-checking-the-next-day-missed-lines-other-teams-dates))
+was done outside these sessions and is not in the total. The history was not rewritten.
 
 ## Where things are
 
