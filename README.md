@@ -21,7 +21,7 @@ uv run pytest
 uv run python -m tracker.web
 ```
 
-`uv run pytest` gives 187 passed and 1 skipped in about 10 seconds. The skipped one is the live
+`uv run pytest` gives 213 passed and 1 skipped in about 10 seconds. The skipped one is the live
 test, which calls a real model. The page is at http://127.0.0.1:8000. Until a day has been
 drafted it shows "No data/ folder yet" and the command to draft one.
 
@@ -45,16 +45,20 @@ uv run python -m tracker.web
 
 On the page, open the day. Each change shows its quote from the transcript. Untick a change to
 reject it, edit an owner or a due date, use Drop to remove an item, and press Approve. Then
-draft the next day with the next transcript. Days must be drafted and approved in order. Use
+draft the next day with the next transcript. Days must be drafted and approved in order. Each item
+on the list shows the latest words said about it, who said them and when, and its history. Use
 `--provider workers_ai` for Cloudflare. A day took 5 to 56 seconds on Groq when this README was
 checked, and once took 412 seconds on Workers AI ([§25](DECISIONS.md#25-clean-week-rerun-2026-11-18-final-prompt-one-run-per-provider)).
 
 A new transcript goes in `transcripts/`, named by its meeting date (`2025-10-20.txt`), with one
 `Name: what they said` line per speaker turn. A turn may run over several lines, and a leading
-timestamp (`[00:01:02]`) or byte-order mark is ignored. A line opening with a label or ticket
+timestamp (`[00:01:02]`) or byte-order mark is ignored. A Zoom or Otter export, where each turn
+opens with a line like `Arjun Mehta  10:02 AM`, is read too. A line opening with a label or ticket
 (`Update:`, `PAY-231:`) belongs to the turn above. A line opening with a lowercase name that is not
-on the team (`vikram:`) is refused, naming the line, so no words are credited to the wrong person
-([§46](DECISIONS.md#46-review-fixes-batch-4-speakers-vague-titles-flagged-changes-at-approve)).
+on the team (`vikram:`), or with a numbered label (`SPEAKER 1:`), is refused, naming the line, so no
+words are credited to the wrong person
+([§46](DECISIONS.md#46-review-fixes-batch-4-speakers-vague-titles-flagged-changes-at-approve),
+[§48](DECISIONS.md#48-review-fixes-batch-5-evidence-on-the-list-re-checking-the-next-day-missed-lines-other-teams-dates)).
 
 To run the whole week, or the held-out meeting, without the page:
 
@@ -87,8 +91,8 @@ It uses the provider in `LLM_PROVIDER` and writes only to a temporary folder.
 3. Code checks every field a rule can check: the owner, the due date, the ticket and the quotes.
    A change that fails a check is flagged. A change with no quote, or with a quote not found in the
    transcript, is also left unticked, so a quick approve skips it.
-4. The lead sees today's changes on the page, with items needing attention (overdue, no owner) at
-   the top, and fixes and approves them.
+4. The lead sees today's changes on the page, with what needs attention at the top: overdue and
+   unowned items, and lines of the meeting no change uses. The lead fixes and approves them.
 5. The approved list is saved to a local JSON file and is the starting list for the next day.
 
 ## Important choices
@@ -124,6 +128,13 @@ Each links to its section in DECISIONS.md.
   ([§42](DECISIONS.md#42-emptied-owners-and-reopening-with-a-new-date)).
 - **The page never calls the model** ([§30](DECISIONS.md#30-the-page-does-not-run-the-model)). A
   day can take minutes, which would need a background job. Drafts come from the command line.
+  Approving an earlier day again checks the next day's draft again from its saved model reply,
+  keeping the lead's edits there, so it needs no new model run
+  ([§48](DECISIONS.md#48-review-fixes-batch-5-evidence-on-the-list-re-checking-the-next-day-missed-lines-other-teams-dates)).
+- **A close or reopen must name its item**, and a due date said about another team, or about when
+  someone will know more, is flagged. When quotes do not say what the work is ("I'll take it."),
+  the card shows the full lines they come from
+  ([§48](DECISIONS.md#48-review-fixes-batch-5-evidence-on-the-list-re-checking-the-next-day-missed-lines-other-teams-dates)).
 - **Removing an item drops it** (status `dropped`) and keeps its history
   ([§28](DECISIONS.md#28-deleting-an-item-means-dropping-it)). **Lead edits are kept next to the
   model's version**, so the owner and date correction rate can be measured
@@ -153,7 +164,8 @@ What they check ([§36–39](DECISIONS.md#36-tests-come-from-the-spec-not-from-t
 - **Code checks:** a quote not in the transcript, owners who are not team members or speakers
   ("infra", "someone"), date phrases resolved from the meeting date, ticket format.
 - **Day order and state:** days run in order, a re-run never applies changes twice, a failed model
-  reply changes nothing.
+  reply changes nothing, and approving an earlier day again checks the next day's draft again with
+  the lead's edits kept.
 - **The page:** the tests post the whole form, as a browser with JavaScript off would. They cover
   edits, unticking, Drop, adding a missed item, refusals, a stale page, escaping, and that the page
   never calls a model.
@@ -168,9 +180,15 @@ model miss into a test failure
 
 ## What was run, and the results
 
-**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 187 passed, 1 skipped.
-End of week, both providers get 7 of the answer key's 9 open items right. Held-out traps: Groq 4 of
-6, Workers AI 5 of 6.
+**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 213 passed, 1 skipped.
+End of week, each provider gets 7 of the answer key's 9 open items right, 1 wrong and 1 missed, and
+leaves 1 open item the key has as done: Groq never closes Priya's PAY-231 review, Workers AI never
+closes the search item. Open and in progress count as the same
+([§14](DECISIONS.md#14-scoring-the-live-test-open-vs-in-progress-is-a-minor-difference)).
+Held-out traps: Groq 4 of 6, Workers AI 5 of 6.
+
+The live runs below give only the first number, the key's open items right; their open items the
+key does not have were not counted.
 
 **Against a real model:**
 - **Clean week, scored by hand against EXPECTED.md:** both gpt-oss-120b runs got 25 of 33 changes
@@ -201,12 +219,16 @@ End of week, both providers get 7 of the answer key's 9 open items right. Held-o
   The same prompt scored differently on this second run: 8 of 9 at the end of the week and 3 of 6
   held-out traps ([§41](DECISIONS.md#41-readme-and-reviewer-setup)).
 - **The review page in a browser:** edits, refusals, escaping, approval and phone width
-  ([§35](DECISIONS.md#35-review-page-check-2026-11-18-in-a-browser)).
+  ([§35](DECISIONS.md#35-review-page-check-2026-11-18-in-a-browser)); the list's words and history,
+  the lines no change uses, and approving an earlier day again, on a week built from the saved Groq
+  replies, at 1280px and 390px
+  ([§48](DECISIONS.md#48-review-fixes-batch-5-evidence-on-the-list-re-checking-the-next-day-missed-lines-other-teams-dates)).
 
 Mistakes the model still makes
 ([§23](DECISIONS.md#23-held-out-first-score-2026-11-18-before-any-date-rule-change),
 [§25](DECISIONS.md#25-clean-week-rerun-2026-11-18-final-prompt-one-run-per-provider)): infra's
-"tomorrow morning" for the cert is given to Sana's deploy, or made into an item; updates to an
+"tomorrow morning" for the cert is given to Sana's deploy, or made into an item (the code now
+flags that date); updates to an
 item named indirectly ("the schema draft") are missed or go to the wrong item. In the three live
 runs after the review fixes ([§45](DECISIONS.md#45-live-runs-after-the-review-fixes-and-four-more-checks)):
 "Search is merged" closed the search review instead of the search item (2 of 3), "Priya looked at
@@ -227,9 +249,11 @@ which four live weeks in one day used up ([§22](DECISIONS.md#22-groq-replaces-g
   the model's matching catches it ([§17](DECISIONS.md#17-phase-3-build-choices)).
 - A ticket or review link set on an earlier day cannot be removed on the page
   ([§33](DECISIONS.md#33-how-the-lead-edits-a-change)).
-- An approved day cannot be changed once a later day is approved; later days are not re-run
+- An approved day cannot be changed once a later day is approved
   ([§11](DECISIONS.md#11-edge-cases-approved-2026-11-18)). No holidays; "tomorrow" on a Friday is
   Saturday.
+- A full name on a Zoom line ("Arjun Mehta") is not matched to the team name ("Arjun"), so an owner
+  taken from it is flagged "not on the team list".
 
 ## With one more day
 
@@ -240,8 +264,6 @@ which four live weeks in one day used up ([§22](DECISIONS.md#22-groq-replaces-g
   else names the reviewer.
 - A second matching pass that only answers "does this mention match one of these items?"
   ([Out of scope](DECISIONS.md#out-of-scope-time-box)).
-- Re-running later days after an approved day is edited
-  ([§11](DECISIONS.md#11-edge-cases-approved-2026-11-18)).
 
 ## Time spent
 

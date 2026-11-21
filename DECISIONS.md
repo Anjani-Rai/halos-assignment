@@ -2,6 +2,12 @@
 
 Each entry: what we chose, what else we considered, and why.
 
+Sections are in the order they were decided, and a later one can change an earlier one. Where that
+happened, the earlier section says so and names the later one. The current design in brief: §1–§5
+(model proposes, code checks, lead approves), §10 (create and update only), §17 and §43–§48 (the
+code checks), §19 (reviews), §28–§34 (the page), §36–§39 (tests). Dated runs (§8, §13, §18, §23,
+§25, §40, §45, §47) record that run only.
+
 ## 1. Where the difficulty is
 
 Extracting items from one transcript is easy for any model. The hard part is matching today's
@@ -69,20 +75,23 @@ Both Python and TypeScript would work. Python won on:
 
 Stack: FastAPI, one server-rendered HTML page (no build step), pytest, a JSON file for state.
 
-## 7. Models: one client, three providers
+## 7. Models: one client, two providers
 
-Ollama, Cloudflare Workers AI and Gemini all expose an OpenAI-style chat API, so one client covers
-all three; a provider is a base URL, a model name and a key (`LLM_PROVIDER` in `.env`).
+Groq and Cloudflare Workers AI both expose an OpenAI-style chat API, so one client covers both; a
+provider is a base URL, a model name, a key and a timeout (`tracker/llm.py`, `LLM_PROVIDER` in
+`.env`). Both run gpt-oss-120b.
 
 | Provider | Model | Role |
 |---|---|---|
-| Ollama (local) | `qwen3:14b` | No key, data stays on the laptop |
-| Workers AI | `@cf/openai/gpt-oss-120b` | Larger open model, already measured on another project |
-| Gemini | `gemini-3.8-flash` | Easiest key for reviewers to get |
+| Groq | `openai/gpt-oss-120b` | Free key, fast (5–54s a day on the saved replies) |
+| Workers AI | `@cf/openai/gpt-oss-120b` | Same model on a second provider, so one outage does not stop a run |
 
-Rejected: a separate SDK per provider (more code, three ways to break).
+Rejected: a separate SDK per provider (more code, more ways to break). The build started with
+Gemini and a local Ollama model as well; Groq replaced Gemini (§22) and Ollama was removed (§26).
 
 ## 8. Probe results (2026-11-18, one made-up 2–4 line standup, dated Monday 2026-11-16)
+
+A record of that probe. Gemini and Ollama were later removed (§22, §26).
 
 All three returned JSON that matched the schema. Content differed:
 
@@ -127,10 +136,12 @@ Running a day:
   are never applied twice.
 - Days run in order. Drafting day N before day N-1 is approved is refused, naming the day to
   approve first.
-- An approved day cannot be edited once a later day exists. Rejected: re-running every later day
+- An approved day cannot be edited once a later day exists (§48: once a later day is approved;
+  approving it again before then checks the next day's draft again). Rejected: re-running every later day
   automatically (too much for the time box).
 - An empty or "nothing from me" transcript gives no changes; the list carries forward.
 - A line without a `Name:` prefix, or a bad file name or date, is a clear error; nothing is saved.
+  (Replaced in §44 and §46: only a first line without one is an error; §48 adds Zoom and Otter lines.)
 
 Model failures:
 - Bad JSON, schema mismatch, cut-off output, 503 or timeout: retry with backoff, then show the
@@ -172,7 +183,7 @@ Review and end of week:
   timeouts and dropped connections, waiting 0.5s doubling to 8s with jitter, and honours
   `Retry-After` up to two minutes. Set to 4 retries. It cannot retry a 200 whose body is not valid
   for our schema, so `llm.call` retries that once, then fails without touching state.
-- **Timeout per provider:** Ollama 300s (local, slowest), Workers AI 180s, Gemini 120s.
+- **Timeout per provider:** Workers AI 180s, Groq 120s.
 - **Strict JSON schema, every field required but nullable.** Strict modes reject optional fields;
   "null" means "not said / unchanged".
 - **Prompt examples never reuse transcript wording.** A first draft quoted "231 is back" and
@@ -185,6 +196,8 @@ Review and end of week:
   check. Not written into project config, so reviewers' installs are unchanged.
 
 ## 13. Monday run (2026-11-18, one run per provider)
+
+A record of that run. Gemini and Ollama were later removed (§22, §26).
 
 Compared against EXPECTED.md Monday. All quotes were found verbatim in the transcript.
 
@@ -255,6 +268,8 @@ One sample each, so this is not a ranking.
 - **One command line (`tracker.cli`) replaces the phase 2 run script.**
 
 ## 18. First full week (2026-11-18, one run per provider)
+
+A record of that run. Gemini and Ollama were later removed (§22, §26).
 
 Against EXPECTED.md, Monday to Friday, each day approved as is.
 
@@ -549,7 +564,7 @@ What this shows about our checks:
 - **Refusals come from `Store`, unchanged:** an earlier day not approved, a later day already
   approved, a draft whose starting list was approved again since. The page shows the first two
   when it loads, with every control disabled. It shows the third with the command to re-run
-  the day. The Approve button still posts, so the Store's own message is shown.
+  the day (since §48, only for a draft saved without its model reply; others are checked again). The Approve button still posts, so the Store's own message is shown.
 - **A page that is out of date is refused.** Each post carries the number of changes it showed.
   If the draft no longer has that many, nothing is saved, rather than an edit landing on the
   wrong change.
@@ -906,7 +921,8 @@ no check on a change can flag.
   carried Priya as the review's owner. The update now reaches the new item, matched by the id the
   code gave it or the model's own id for the create. If the lead unticks the create, the update is
   skipped and its card shows "Cannot apply". Base ids always win.
-- **The transcript tags the lines no change quotes.** The existing collapsed Transcript moves from
+- **The transcript tags the lines no change quotes** (narrowed, and listed under Needs attention, in
+  §48). The existing collapsed Transcript moves from
   below Approve to just above "Add a missed item", so the page reads in order: today's changes, the
   list after approving, what the meeting said that no change used, add what is missing, approve. Its
   heading counts the untagged lines ("12 lines, 2 not used by any change"); one hint line says what
@@ -920,6 +936,96 @@ no check on a change can flag.
 - **The "finished but not closed" flag also reads the quotes**, not only the note, with the same
   future and negation rules. Replayed on all saved and live replies it fires once: Workers AI run 1
   gave the search item a note with "Search is merged" as its quote and left it open.
+
+## 48. Review fixes, batch 5: evidence on the list, re-checking the next day, missed lines, other teams' dates
+
+From the final review. Each fix has a test named "Review fix 19" to "Review fix 25". Replayed on
+every saved reply, no end-of-week or held-out score changes; the counts below are from that replay.
+
+- **The list shows the words behind each item on every day** (fix 24). Each row of "List after
+  approving" and of Closed items shows the latest quotes, who said them and the day, and the latest
+  note. "History (n)" opens every day's change with its quotes; a note from a create or a starting
+  list is its own line. The command line's list prints the latest quotes under each item.
+  - Why: the brief asks for supporting words for each item. Quotes and notes were stored, but shown
+    only on the day of the change; on Thursday, "cause is the index" was nowhere on the page.
+  - Rejected: a separate column (the table was already wider than a phone); every quote inline
+    (rows grow each day).
+  - Under 600px each row is a block: title and words across the width, then owner, status, due,
+    ticket and the buttons, so Change and Drop are on screen. Checked at 1280px and 390px.
+- **Approving an earlier day again checks the next day's draft again** (fix 22). A draft keeps the
+  model's reply. Approving Monday again runs the code checks on Tuesday's saved reply against
+  Monday's new list, with no model call, and keeps the lead's Tuesday edits, ticks and added
+  changes. An added item gets a fresh id; a lead change to an item no longer on the list shows
+  "cannot apply". Monday's message and Tuesday's banner say what happened.
+  - Why: Tuesday was refused ("run 2025-10-14 again"): a model call of up to minutes with a
+    different answer, and the lead's Tuesday edits lost. Fixing Monday after seeing Tuesday is the
+    normal way a lead finds a mistake.
+  - Rejected: a warning before approving again (Tuesday's work is still lost); applying Tuesday's
+    old changes to the new list unchecked (a new Monday item can share Tuesday's new ids, and the
+    duplicate checks would have run against the old list).
+  - Known limit: the model wrote its reply against the old list, so it never saw an item the lead
+    added on Monday; only the duplicate checks connect the two. A draft saved before this change
+    has no reply and is still refused, with the command to draft it again.
+- **A close or reopen must name its item** (fix 19). If neither the quotes nor the line before
+  them name the item (a title word, the ticket number, the other name for a code name, or for a
+  review, the reviewed item and its owner), the change is flagged and stays ticked, so it is listed
+  next to Approve.
+  - Why: the quote check proves only that the words were said. One real line could close any item,
+    and the live runs closed the search review on "Search is merged" (§45).
+  - Replayed: fires on no saved change. Rejected: unticking, which hides correct closes quoted from
+    a short line behind a click.
+- **Thin quotes come with their lines** (fix 20). When the quotes do not name the work ("I'll take
+  it.", "that's done."), the card shows the full lines they come from, plus the line before when
+  those do not name it either. Replayed: 4 changes per saved week on each provider, 5 and 4 on the
+  held-out meeting.
+  - Why: the prompt asks for quotes that show what and who, but code accepted any two words, so
+    some cards could not be checked from the card.
+  - Rejected: a flag. Most thin quotes are on correct changes, and a flag that is mostly about
+    correct changes teaches the lead to skip flags (§45).
+  - A due phrase right after "know", "find out", "hear back" and the like ("I'll know by tonight")
+    is dropped, with a flag: it says when someone will know more, not when the work is due
+    (EXPECTED.md, Monday). Replayed: fires once, on Groq's Monday search date, which was right only
+    because "tonight" and "today" are the same day.
+- **Another party's date is flagged, with or without an owner** (fix 21). A due phrase in a sentence
+  that names infra, support, ops, security, QA, a vendor, "they" or "the ... team" is flagged, ticked.
+  - Why: the check that a date comes from the owner (§43) is skipped when the item has no owner,
+    and passes when the owner repeats infra's date. Workers AI's Tuesday put infra's "tomorrow
+    morning" on the unowned Hermes deploy with no flag.
+  - Replayed: fires twice, both on infra's cert date (Groq's cert item, Workers AI's deploy), and on
+    no other date. Known limit: a sentence naming both ("infra fixed it, so Sana can deploy
+    tomorrow") is flagged too.
+- **Transcript formats that gave words to the wrong person** (fix 23).
+  - A Zoom or Otter speaker line ("Arjun Mehta  10:02 AM", "Arjun  0:05") starts a turn whose words
+    are on the lines below. It is read only in a file that opens with one, so "Lunch 12:30" inside
+    a turn stays text.
+  - A numbered label ("SPEAKER 1:", "Speaker A:") is refused, naming the line. Rejected: accepting
+    "Speaker 1" as a person, which makes every owner "Speaker 1". Owners come from speakers, so
+    the lead replaces the labels with names once.
+  - "Priya:I'll take it" (no space after the colon) and "Arjun:" on its own line start a turn; a
+    link ("https://...") does not.
+  - Before, each of these joined the turn above with no error.
+  - Not built: a full name on a Zoom line is not mapped to the team name, so "Arjun Mehta" is a new
+    speaker, and an owner taken from it is flagged "not on the team list".
+- **Lines that may hold a missed change are at the top** (fix 25). A line is listed under Needs
+  attention, and tagged "not used" in the transcript, when no change quotes it and it names nothing,
+  or names an item no change touches today. Each has "Add as item", which opens the add form with the
+  line kept as the new item's quote.
+  - Why: Groq's Monday never created the Hermes deploy, and the only sign was one of 7 tags inside
+    the collapsed transcript.
+  - Replayed: Monday drops from 7 lines to 4 on Groq, with the Hermes deploy first, and from 6 to 3
+    on Workers AI; other days stay at 0 to 3. The held-out meeting keeps "Devansh, did you get to
+    the schema draft?", the trap both providers miss.
+  - Rejected: a filter on promise words ("I'll", "can you"), which dropped the Hermes deploy line (a
+    status report, not a promise); treating a line as covered when it names any item on the list,
+    which would hide "231 is back" when the reopen is missed (Workers AI run 2, §47).
+- **The end-of-week score counts every open item.** It reports the key's open items right, wrong and
+  missed, and the open items the key does not have (Groq's PAY-231 review, Workers AI's search
+  item). Before, "7 of 9 right" hid the second. The live numbers in §40–§47 give only the first count.
+- **Sections that later ones changed now say so** (§7, §8, §11, §12, §13, §18, §34, §47), and the
+  top of this file says how to read it.
+
+Not checked with a live model: how often the new flags fire on fresh replies. Command, in a
+throwaway copy: `LIVE=1 LLM_PROVIDER=groq uv run --env-file .env pytest -s tests/test_live.py`.
 
 ## Out of scope (time box)
 
