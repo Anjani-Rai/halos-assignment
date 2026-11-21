@@ -1,13 +1,12 @@
-"""Replays a week of model replies and checks it against EXPECTED.md's matching traps."""
-import json
+"""Replays a week of model replies and checks it against EXPECTED.md's matching traps. Scores come from
+tracker.score, the same scorer as the score command. Run from the repo root (tests chdir there)."""
 import re
-from dataclasses import dataclass
 from datetime import date
 
-from conftest import FRI, HELDOUT, HELDOUT_DAY, MON, REPO, THU, TUE, WED, heldout_base
-from tracker.apply import apply, review
-from tracker.models import CLOSED, Item, Proposed, Reply
-from tracker.transcript import load
+from conftest import FRI, HELDOUT_DAY, MON, REPO, THU, TUE, WED
+from tracker import score
+from tracker.models import Item
+from tracker.score import DayRun
 
 DAYS = [MON, TUE, WED, THU, FRI]
 
@@ -16,13 +15,6 @@ GROUPS = [("Atlas login", r"login"), ("search latency", r"latency"), ("staging d
           ("flaky CI test", r"flaky"), ("export", r"export"), ("CSV reply", r"csv"),
           ("onboarding doc", r"onboarding"), ("kickoff doc", r"kickoff"), ("Falcon migration", r"migration"),
           ("Hermes retry bug", r"retry|APP-402"), ("auth bug", r"auth|PAY-231")]
-
-
-@dataclass
-class Day:
-    day: date
-    proposed: list[Proposed]
-    items: list[Item]  # the list after the ticked changes are applied
 
 
 def is_review(i: Item) -> bool:
@@ -36,23 +28,26 @@ def group(i: Item) -> str | None:
     return next((name for name, rx in GROUPS if re.search(rx, text, re.I)), None)
 
 
-def replay(chain: str) -> list[Day]:
-    """Each day from the last approved list, approved as is (the command line's --approve)."""
-    items, week = [], []
-    for day in DAYS:
-        raw = json.loads((REPO / "tests" / "replies" / chain / f"{day.isoformat()}.json").read_text())
-        proposed = review(Reply.model_validate(raw["reply"]), items, load(REPO / "transcripts" / f"{day}.txt"))
-        items = apply(items, proposed, day)
-        week.append(Day(day, proposed, items))
-    return week
+def replay(chain: str) -> list[DayRun]:
+    """The saved week, each day from the day before's result, approved as is (the command line's --approve)."""
+    return score.run("chained", score.load_key(), score.saved_replies(REPO / "tests" / "replies" / chain))
 
 
-def created(d: Day) -> list[Item]:
-    ids = {p.item_id for p in d.proposed if p.change.action == "create" and p.selected and p.applicable}
-    return [i for i in d.items if i.id in ids]
+def created(d: DayRun) -> list[Item]:
+    before = {i.id for i in d.base}
+    return [i for i in d.items if i.id not in before]
 
 
-def traps(week: list[Day]) -> list[str]:
+def saved_report(chain: str) -> str:
+    """The scorer's report for a provider's saved week (chained) and its saved held-out day (from the key)."""
+    key = score.load_key()
+    week = replay(chain)
+    held = score.run("isolated", key, score.saved_replies(REPO / "tests" / "replies" / f"{chain}-heldout"), [HELDOUT_DAY])
+    scores = score.score_run(week, key, "chained") + score.score_run(held, key, "isolated")
+    return score.report([(week + held, scores)], key, f"saved replies, {chain}")[0]
+
+
+def traps(week: list[DayRun]) -> list[str]:
     """EXPECTED.md's four matching traps and no duplicates. Returns what failed."""
     by = {d.day: d for d in week}
     fails = []
@@ -89,76 +84,3 @@ def traps(week: list[Day]) -> list[str]:
                 seen.setdefault(g, []).append((d.day, f"{i.id} {i.title} ({d.day})"))
     fails += [f"duplicate {g}: {', '.join(s for _, s in v)}" for g, v in seen.items() if len({day for day, _ in v}) > 1]
     return fails
-
-
-# EXPECTED.md "End of week: open items": title words, is a review, owners, due, status.
-END_OF_WEEK = [
-    ("Export feature", r"export", False, {"Priya"}, date(2025, 10, 22), "in_progress"),
-    ("Falcon migration", r"migration", False, {"Priya", "Dev"}, None, "in_progress"),
-    ("Hermes retry bug APP-402", r"retry|APP-402", False, {"Sana"}, date(2025, 10, 20), "in_progress"),
-    ("Onboarding doc", r"onboarding", False, {"Rohan"}, None, "in_progress"),
-    ("Review the Falcon schema draft", r"schema", True, {"Dev"}, date(2025, 10, 17), "open"),
-    ("Review Rohan's onboarding doc draft", r"onboarding", True, {"Priya"}, None, "open"),
-    ("Retro on PAY-231", r"retro", False, set(), None, "open"),
-    ("Send the Falcon kickoff doc", r"kickoff", False, {"Arjun"}, date(2025, 10, 15), "open"),
-    ("Flaky CI test", r"flaky", False, set(), None, "open"),
-]
-MINOR = {"open", "in_progress"}  # §14: open vs in progress is a minor difference
-
-
-def end_of_week_report(week: list[Day]) -> str:
-    """The answer key's open items found right, wrong or missed, and every other open item, which is
-    wrong too: work the key has as done, or never had. Open and in progress count as the same (§14)."""
-    open_items = [i for i in week[-1].items if i.status not in CLOSED]
-    lines, right, wrong_n, missed, swapped, used = [], 0, 0, 0, 0, set()
-
-    def score(i, owners, due, status):
-        wrong = [f for f, ok in [("owners", set(i.owners) == owners), ("due", i.due_date == due)] if not ok]
-        minor = i.status != status and {i.status, status} <= MINOR
-        return wrong + ([] if i.status == status or minor else ["status"]), minor
-
-    for label, rx, rev, owners, due, status in END_OF_WEEK:
-        found = [i for i in open_items if re.search(rx, f"{i.title} {i.ticket or ''}", re.I) and is_review(i) == rev]
-        if not found:
-            lines.append(f"  missed  {label}")
-            missed += 1
-            continue
-        # The best match counts; a second match (e.g. a calendar event) is listed with the other open items.
-        i = min(found, key=lambda i: len(score(i, owners, due, status)[0]))
-        used.add(i.id)
-        wrong, minor = score(i, owners, due, status)
-        right += not wrong
-        wrong_n += bool(wrong)
-        swapped += minor and not wrong
-        note = ", ".join(f"wrong {w}" for w in wrong) + (" (status minor)" if minor else "")
-        lines.append(f"  {'right ' if not wrong else 'wrong '}  {label}: {i.id} {i.owners} {i.due_date} "
-                     f"{i.status} {note}".rstrip())
-    other = [i for i in open_items if i.id not in used]
-    lines += [f"  extra   {i.id} {i.title} {i.owners} {i.status}" for i in other]
-    head = (f"End of week: {right} of the key's {len(END_OF_WEEK)} open items right ({swapped} with open and in "
-            f"progress swapped), {wrong_n} wrong, {missed} missed; {len(other)} open item(s) the key does not have")
-    return "\n".join([head] + lines)
-
-
-def heldout_report(chain: str) -> str:
-    """The EXPECTED.md held-out traps, printed only: §23 records known model misses here."""
-    base = heldout_base()
-    raw = json.loads((REPO / "tests" / "replies" / chain / f"{HELDOUT_DAY.isoformat()}.json").read_text())
-    proposed = review(Reply.model_validate(raw["reply"]), base, load(HELDOUT / f"{HELDOUT_DAY.isoformat()}.txt"))
-    after = {i.id: i for i in apply(base, proposed, HELDOUT_DAY)}
-    before = {i.id: i for i in base}
-    new = [i for i in after.values() if i.id not in before]
-    halfway = lambda i: any("halfway" in n.text.lower() for n in i.notes)
-    checks = [
-        ("'the schema draft' is Dev's review T15, not Falcon T12",
-         (halfway(after["T15"]) or after["T15"].due_date == HELDOUT_DAY) and not halfway(after["T12"])),
-        ("Rohan owns a new review of T13; Sana keeps T13",
-         any(i.review_of == "T13" and i.owners == ["Rohan"] for i in new) and after["T13"].owners == ["Sana"]),
-        ("Priya's comments close T16, not T7", after["T16"].status == "done" and after["T7"].status != "done"),
-        ("Infra's freeze date is not Falcon's due date", after["T12"].due_date == before["T12"].due_date),
-        ("The new CSV reply is new work; T6 stays done",
-         any(re.search("csv", i.title, re.I) for i in new) and after["T6"].status == "done"),
-        ("Dev on the flaky CI test, tentative", after["T4"].owners == ["Dev"] and after["T4"].tentative),
-    ]
-    return "\n".join([f"Held-out {chain}: {sum(ok for _, ok in checks)} of {len(checks)} traps"] +
-                     [f"  {'pass' if ok else 'MISS'}  {name}" for name, ok in checks])

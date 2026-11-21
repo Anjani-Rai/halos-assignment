@@ -14,7 +14,7 @@ def norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
-def _bare(quote: str) -> str:
+def bare(quote: str) -> str:
     return norm(re.sub(r"^[A-Z][\w'-]*:\s*", "", quote.strip())).strip(" .,!?\"'")
 
 
@@ -25,7 +25,7 @@ def _within(q: str, text: str) -> bool:
 
 def turns_with(quote: str, turns: list[tuple[str, str]]) -> list[int]:
     """Indexes of the turns that contain the quote."""
-    q = _bare(quote)
+    q = bare(quote)
     return [n for n, (_, text) in enumerate(turns) if _within(q, text)]
 
 
@@ -34,7 +34,7 @@ def quote_found(quote: str, turns: list[tuple[str, str]]) -> bool:
 
 
 def words(quote: str) -> int:
-    return len(_bare(quote).split())
+    return len(bare(quote).split())
 
 
 def names_in(text: str, people: list[str]) -> set[str]:

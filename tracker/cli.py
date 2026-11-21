@@ -3,9 +3,13 @@
 uv run --env-file .env python -m tracker.cli run transcripts/2025-10-14.txt --provider groq --approve
 uv run --env-file .env python -m tracker.cli week --provider groq --approve
 uv run --env-file .env python -m tracker.cli heldout --provider groq --approve
+uv run --env-file .env python -m tracker.cli score --provider groq --runs 3
+uv run python -m tracker.cli score --replay runs/<folder>
 --approve accepts every ticked change as is; real use goes through the review page.
 Each model reply is kept next to its draft in data/; --save-replies also writes it to tests/replies,
-which the saved-reply tests read.
+which the saved-reply tests read. score drafts each day of the answer key (tests/key) --runs times
+and reports what the lead would have to fix, with tokens and time; --replay scores a saved run again
+with today's code and no model call.
 """
 
 import argparse
@@ -18,7 +22,7 @@ from pathlib import Path
 
 import openai
 
-from . import llm, prompt
+from . import llm, prompt, score
 from .apply import apply, fmt_due, review
 from .models import CLOSED, Event, Item, Reply
 from .store import Draft, Store
@@ -105,11 +109,15 @@ def show_list(items) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["run", "week", "heldout"])
+    ap.add_argument("cmd", choices=["run", "week", "heldout", "score"])
     ap.add_argument("transcript", type=Path, nargs="?")
     ap.add_argument("--provider", default=os.environ.get("LLM_PROVIDER", "groq"))
     ap.add_argument("--approve", action="store_true")
     ap.add_argument("--save-replies", action="store_true", help="also write replies to tests/replies")
+    ap.add_argument("--mode", choices=["isolated", "chained"], default="isolated",
+                    help="score: each day from the key's day before, or the week from its own results")
+    ap.add_argument("--runs", type=int, default=3, help="score: how many times to run each day")
+    ap.add_argument("--replay", type=Path, help="score: a runs/ folder to score again, no model call")
     args = ap.parse_args()
     if args.cmd == "run" and args.transcript is None:
         ap.error("run needs a transcript file, like transcripts/2025-10-13.txt")
@@ -120,12 +128,15 @@ def main() -> None:
     # The SDK logs each retry ("Retrying request in 1.8 seconds (retry 2 of 4)") at INFO.
     logging.basicConfig(format="   %(message)s", stream=sys.stdout)
     logging.getLogger("openai._base_client").setLevel(logging.INFO)
+    if args.cmd == "score":
+        score.score_command(args.provider, args.mode, args.runs, args.replay)
+        return
     store = Store(args.provider)
 
     if args.cmd == "heldout":  # starts from the answer key's Friday list, apart from the week
         store = Store(f"{args.provider}-heldout", transcripts=HELDOUT)
-        base = json.loads((HELDOUT / "base.json").read_text())
-        store.seed(date(2025, 10, 17), [Item.model_validate(i) for i in base])
+        friday = date(2025, 10, 17)
+        store.seed(friday, score.load_key()[friday])
         paths = sorted(HELDOUT.glob("*.txt"))
     elif args.cmd == "week":  # resumes: days already approved are skipped
         done = {str(d) for d in store.approved_days()}

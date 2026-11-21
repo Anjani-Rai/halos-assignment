@@ -34,7 +34,8 @@ def transcript(tmp_path: Path, day: date, lines: list[str]):
 
 
 def heldout_base() -> list[Item]:
-    return [Item(**d) for d in json.loads((HELDOUT / "base.json").read_text())]
+    """The answer key's Friday list, where the held-out Monday starts."""
+    return [Item(**d) for d in json.loads((REPO / "tests" / "key" / f"{FRI.isoformat()}.json").read_text())]
 
 
 class _Form(HTMLParser):

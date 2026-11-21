@@ -1,0 +1,477 @@
+[
+ {
+  "id": "T1",
+  "title": "Search latency fix",
+  "owners": [
+   "Arjun"
+  ],
+  "status": "done",
+  "due_phrase": "Tomorrow, probably",
+  "due_date": "2025-10-15",
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [
+   {
+    "on": "2025-10-14",
+    "text": "Cause is the index, not the query"
+   },
+   {
+    "on": "2025-10-15",
+    "text": "In review"
+   },
+   {
+    "on": "2025-10-16",
+    "text": "Merged; watching the numbers"
+   }
+  ],
+  "created_on": "2025-10-13",
+  "history": [
+   {
+    "on": "2025-10-13",
+    "what": "created",
+    "quotes": [
+     "Search latency, still on it.",
+     "Should have a fix today, maybe tomorrow worst case."
+    ]
+   },
+   {
+    "on": "2025-10-14",
+    "what": "changed",
+    "quotes": [
+     "Turns out it's the index, not the query",
+     "Tomorrow, probably."
+    ]
+   },
+   {
+    "on": "2025-10-15",
+    "what": "note",
+    "quotes": [
+     "Search fix is in review, finally."
+    ]
+   },
+   {
+    "on": "2025-10-16",
+    "what": "changed",
+    "quotes": [
+     "Already did. Search is merged"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T2",
+  "title": "Auth bug (token refresh, then session cookie)",
+  "owners": [
+   "Dev"
+  ],
+  "status": "in_progress",
+  "due_phrase": "today",
+  "due_date": "2025-10-14",
+  "ticket": "PAY-231",
+  "tentative": false,
+  "review_of": null,
+  "notes": [
+   {
+    "on": "2025-10-16",
+    "text": "Back: session cookie this time"
+   }
+  ],
+  "created_on": "2025-10-13",
+  "history": [
+   {
+    "on": "2025-10-13",
+    "what": "created",
+    "quotes": [
+     "the auth bug from yesterday, the one from the support ticket?",
+     "Yeah, I had context. I'll take it.",
+     "Cool, Dev on auth then."
+    ]
+   },
+   {
+    "on": "2025-10-14",
+    "what": "changed",
+    "quotes": [
+     "PAY-231, the auth one. Confirmed it's token refresh, fix is going out today"
+    ]
+   },
+   {
+    "on": "2025-10-15",
+    "what": "changed",
+    "quotes": [
+     "Auth is done, by the way, deployed last night"
+    ]
+   },
+   {
+    "on": "2025-10-16",
+    "what": "changed",
+    "quotes": [
+     "231 is back. Different cause this time, it's the session cookie",
+     "I'm on it"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T3",
+  "title": "Hermes staging deploy",
+  "owners": [
+   "Sana"
+  ],
+  "status": "done",
+  "due_phrase": null,
+  "due_date": null,
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [
+   {
+    "on": "2025-10-13",
+    "text": "Waiting on infra to renew the expired cert"
+   },
+   {
+    "on": "2025-10-14",
+    "text": "Infra expects the cert tomorrow morning"
+   }
+  ],
+  "created_on": "2025-10-13",
+  "history": [
+   {
+    "on": "2025-10-13",
+    "what": "created",
+    "quotes": [
+     "the Hermes staging deploy is blocked. The cert expired over the weekend",
+     "Just keep on them."
+    ]
+   },
+   {
+    "on": "2025-10-14",
+    "what": "note",
+    "quotes": [
+     "They say the cert will be done tomorrow morning."
+    ]
+   },
+   {
+    "on": "2025-10-15",
+    "what": "changed",
+    "quotes": [
+     "Hermes staging deploy went out this morning, all green."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T4",
+  "title": "Flaky CI test, same timeout twice",
+  "owners": [],
+  "status": "open",
+  "due_phrase": null,
+  "due_date": null,
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [],
+  "created_on": "2025-10-13",
+  "history": [
+   {
+    "on": "2025-10-13",
+    "what": "created",
+    "quotes": [
+     "Should we do something about the flaky test in CI?",
+     "Let's talk about it after, not now."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T5",
+  "title": "Export feature (Atlas export)",
+  "owners": [
+   "Priya"
+  ],
+  "status": "in_progress",
+  "due_phrase": "Wednesday",
+  "due_date": "2025-10-22",
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [],
+  "created_on": "2025-10-13",
+  "history": [
+   {
+    "on": "2025-10-13",
+    "what": "created",
+    "quotes": [
+     "I'll start on the export feature.",
+     "Fine, Monday."
+    ]
+   },
+   {
+    "on": "2025-10-14",
+    "what": "mentioned",
+    "quotes": [
+     "Export's going fine. Still Monday."
+    ]
+   },
+   {
+    "on": "2025-10-15",
+    "what": "mentioned",
+    "quotes": [
+     "The Atlas export is still on for Monday."
+    ]
+   },
+   {
+    "on": "2025-10-16",
+    "what": "changed",
+    "quotes": [
+     "export is going to slip.",
+     "Say Wednesday?",
+     "Wednesday's fine."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T6",
+  "title": "Reply to customer about CSV encoding",
+  "owners": [
+   "Dev"
+  ],
+  "status": "done",
+  "due_phrase": null,
+  "due_date": null,
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [],
+  "created_on": "2025-10-13",
+  "history": [
+   {
+    "on": "2025-10-13",
+    "what": "created",
+    "quotes": [
+     "I replied last night, that's done."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T7",
+  "title": "Fix the out-of-date onboarding doc",
+  "owners": [
+   "Rohan"
+  ],
+  "status": "in_progress",
+  "due_phrase": null,
+  "due_date": null,
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [],
+  "created_on": "2025-10-13",
+  "history": [
+   {
+    "on": "2025-10-13",
+    "what": "created",
+    "quotes": [
+     "The onboarding doc is out of date.",
+     "Someone should fix that at some point."
+    ]
+   },
+   {
+    "on": "2025-10-16",
+    "what": "changed",
+    "quotes": [
+     "I can take the onboarding doc, if that's still a thing?",
+     "It's still a thing. Yes, take it."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T8",
+  "title": "Review Dev's PAY-231 PR",
+  "owners": [
+   "Priya"
+  ],
+  "status": "done",
+  "due_phrase": "after this",
+  "due_date": "2025-10-14",
+  "ticket": null,
+  "tentative": false,
+  "review_of": "T2",
+  "notes": [],
+  "created_on": "2025-10-14",
+  "history": [
+   {
+    "on": "2025-10-14",
+    "what": "created",
+    "quotes": [
+     "I just need Priya to glance at the PR.",
+     "I'll look at Dev's PR after this."
+    ]
+   },
+   {
+    "on": "2025-10-15",
+    "what": "changed",
+    "quotes": [
+     "Priya looked at it."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T9",
+  "title": "Atlas login is slow",
+  "owners": [
+   "Dev"
+  ],
+  "status": "done",
+  "due_phrase": null,
+  "due_date": null,
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [
+   {
+    "on": "2025-10-14",
+    "text": "Might be related to PAY-231, might not"
+   },
+   {
+    "on": "2025-10-15",
+    "text": "Slow query on the roles table, unrelated to PAY-231"
+   }
+  ],
+  "created_on": "2025-10-14",
+  "history": [
+   {
+    "on": "2025-10-14",
+    "what": "created",
+    "quotes": [
+     "someone pinged me about the Atlas login being slow",
+     "I'll look after."
+    ]
+   },
+   {
+    "on": "2025-10-15",
+    "what": "changed",
+    "quotes": [
+     "it was just a slow query on the roles table, I fixed it"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T10",
+  "title": "Review Arjun's search PR",
+  "owners": [
+   "Dev"
+  ],
+  "status": "done",
+  "due_phrase": "today",
+  "due_date": "2025-10-15",
+  "ticket": null,
+  "tentative": false,
+  "review_of": "T1",
+  "notes": [],
+  "created_on": "2025-10-15",
+  "history": [
+   {
+    "on": "2025-10-15",
+    "what": "created",
+    "quotes": [
+     "Dev, can you look at it today?",
+     "Yeah, I'll review Arjun's search PR today."
+    ]
+   },
+   {
+    "on": "2025-10-16",
+    "what": "changed",
+    "quotes": [
+     "I reviewed it, left two comments, nothing big"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T11",
+  "title": "Send the Falcon kickoff doc",
+  "owners": [
+   "Arjun"
+  ],
+  "status": "open",
+  "due_phrase": "tonight",
+  "due_date": "2025-10-15",
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [],
+  "created_on": "2025-10-15",
+  "history": [
+   {
+    "on": "2025-10-15",
+    "what": "created",
+    "quotes": [
+     "Is there a doc or anything?",
+     "I'll send something tonight."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T12",
+  "title": "Falcon: payments DB migration off the old schema",
+  "owners": [
+   "Priya",
+   "Dev"
+  ],
+  "status": "in_progress",
+  "due_phrase": "the next two weeks",
+  "due_date": null,
+  "ticket": null,
+  "tentative": false,
+  "review_of": null,
+  "notes": [
+   {
+    "on": "2025-10-16",
+    "text": "Dev splits with PAY-231 until it closes"
+   }
+  ],
+  "created_on": "2025-10-16",
+  "history": [
+   {
+    "on": "2025-10-16",
+    "what": "created",
+    "quotes": [
+     "Falcon is the payments DB migration, we're moving off the old schema.",
+     "Priya and Dev are on it for the next two weeks."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "T13",
+  "title": "Hermes retry bug: retries forever on a 400",
+  "owners": [
+   "Sana"
+  ],
+  "status": "in_progress",
+  "due_phrase": "tomorrow",
+  "due_date": "2025-10-17",
+  "ticket": "APP-402",
+  "tentative": false,
+  "review_of": null,
+  "notes": [],
+  "created_on": "2025-10-16",
+  "history": [
+   {
+    "on": "2025-10-16",
+    "what": "created",
+    "quotes": [
+     "I'm picking up the Hermes retry bug, APP-402, the one where it retries forever on a 400.",
+     "Should be done tomorrow, it's small."
+    ]
+   }
+  ]
+ }
+]

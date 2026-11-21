@@ -5,24 +5,20 @@ import os
 import pytest
 
 from conftest import REPO
-from tracker import cli
-from tracker.store import Store
-from week import DAYS, Day, end_of_week_report, traps
+from tracker import score
+from week import traps
 
 pytestmark = pytest.mark.skipif(not os.environ.get("LIVE"), reason="calls a real model; set LIVE=1")
 
 
 def test_live_week(tmp_path, monkeypatch, capsys):
-    """§14, EXPECTED.md: the four matching traps and no duplicates hold on a fresh run."""
+    """§14, EXPECTED.md: the four matching traps and no duplicates hold on a fresh run. The scorer's
+    report is printed; replies are saved in a temporary folder only."""
     monkeypatch.chdir(REPO)
-    monkeypatch.setattr(cli, "REPLIES", tmp_path / "replies")
     provider = os.environ.get("LLM_PROVIDER", "groq")
-    store = Store(f"{provider}-live", root=tmp_path / "data", transcripts=REPO / "transcripts")
-    week = []
-    for day in DAYS:
-        d = cli.draft_day(REPO / "transcripts" / f"{day.isoformat()}.txt", provider, store)
-        store.save_draft(d)
-        week.append(Day(day, d.proposed, store.approve(day).items))
+    key = score.load_key()
+    week = score.run("chained", key, score.live_replies(provider, tmp_path / "replies"))
     with capsys.disabled():
-        print(f"\nlive {provider}\n{end_of_week_report(week)}")
+        print("\n" + score.report([(week, score.score_run(week, key, "chained"))], key, f"live {provider}")[0])
+    assert [d.error for d in week if d.error] == []
     assert traps(week) == []
