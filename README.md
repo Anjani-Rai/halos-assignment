@@ -21,7 +21,7 @@ uv run pytest
 uv run python -m tracker.web
 ```
 
-`uv run pytest` gives 213 passed and 1 skipped in about 10 seconds. The skipped one is the live
+`uv run pytest` gives 223 passed and 1 skipped in about 10 seconds. The skipped one is the live
 test, which calls a real model. The page is at http://127.0.0.1:8000. Until a day has been
 drafted it shows "No data/ folder yet" and the command to draft one.
 
@@ -155,7 +155,10 @@ Each links to its section in DECISIONS.md.
   ([§28](DECISIONS.md#28-deleting-an-item-means-dropping-it)). **Lead edits are kept next to the
   model's version**, so the owner and date correction rate can be measured
   ([§29](DECISIONS.md#29-lead-edits-are-kept-next-to-the-codes-version)).
-- **Two providers, one model.** Groq and Workers AI both run gpt-oss-120b. Gemini's free key failed
+- **Two providers, one model.** Groq and Workers AI both run gpt-oss-120b. Groq is the main one and
+  writes 8 to 9 times faster. When Groq refuses or fails a day, the same request goes to Workers AI,
+  and the saved reply says which provider answered and why
+  ([§51](DECISIONS.md#51-workers-ai-answers-when-groq-refuses-or-fails-a-day)). Gemini's free key failed
   most runs ([§22](DECISIONS.md#22-groq-replaces-gemini)); a local qwen3:14b on Ollama got 18 of 33
   changes right against 25 ([§26](DECISIONS.md#26-ollama-removed)).
 - **A held-out meeting gives the honest score**
@@ -200,7 +203,7 @@ asserting them would turn a recorded model miss into a test failure
 
 ## What was run, and the results
 
-**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 219 passed, 1 skipped.
+**With saved replies** (`uv run pytest`, in a fresh clone with no `.env`): 223 passed, 1 skipped.
 Scored by `tracker/score.py`, the saved week run day after day: Groq 24 of 33 changes right, 5
 partly, 4 missed, 12 lead fixes; Workers AI 23 right, 8 partly, 2 missed, 13 lead fixes. Held-out:
 Groq 4 right, 3 partly, 3 missed; Workers AI 5, 3, 2, the same as the hand scores of §23. Open and
@@ -281,22 +284,35 @@ which four live weeks in one day used up ([§22](DECISIONS.md#22-groq-replaces-g
   Saturday.
 - A full name on a Zoom line ("Arjun Mehta") is not matched to the team name ("Arjun"), so an owner
   taken from it is flagged "not on the team list".
+- The switch to Workers AI was tested against two local fake providers, not seen live: the one live
+  held-out request sent after it was built was answered by Groq
+  ([§51](DECISIONS.md#51-workers-ai-answers-when-groq-refuses-or-fails-a-day)).
+- No prompt changes were made after the scorer's first runs, so its misses are still there (below).
 
 ## With one more day
 
+Ranked from the scorer's first runs
+([§49](DECISIONS.md#49-an-answer-key-per-day-and-a-scorer-that-counts-lead-fixes)); each change is
+kept only if three runs before and after, on both providers and with the held-out day, show the gain
+is larger than the run-to-run spread (6 to 8 lead fixes a week).
+
+- **Note the parent when a review is created.** In every run the model made the review of the
+  Falcon schema draft and of the onboarding draft, but did not note "draft is up" on the item
+  itself; Wednesday's "search fix is in review" was missed the same way in 2 of 3. These are about 3
+  of the 6.7 lead fixes a week, for one or two prompt lines (about 40 tokens a day).
+- **The two other misses in every run:** Sana's blocked Hermes deploy gets no owner ("it's with
+  infra" is not an owner), and Priya's "after this" gives her review no date.
+- **Updates to items named indirectly** on the held-out day ("the schema draft"), measured on
+  Workers AI, which takes the held-out day's size.
 - A demo chain built from the saved replies, so the page can be tried without a key.
 - A "draft this day" button on the page, with a background job and progress
   ([§30](DECISIONS.md#30-the-page-does-not-run-the-model)).
-- Prompt work on the misses above: updates to items named indirectly, and reviews where someone
-  else names the reviewer.
-- A second matching pass that only answers "does this mention match one of these items?"
-  ([Out of scope](DECISIONS.md#out-of-scope-time-box)).
 
 ## Time spent
 
-About 3 hours 45 minutes, from the first commit at 12:58 to this README at 16:45, built with a
-coding agent.
-Time before the first commit is not counted.
+About 4 hours 15 minutes to 4 hours 30 minutes in all, built with a coding agent: 3 hours 45
+minutes on 18 November, from the first commit at 12:58 to the first README at 16:45, and about 30 to
+45 minutes more on 19 and 21 November (phase 7). Time before the first commit is not counted.
 
 | Phase | Time |
 |---|---|
@@ -306,6 +322,7 @@ Time before the first commit is not counted.
 | 4. Review page | 14:57–15:16 |
 | 5. Tests | 15:24–16:03 |
 | 6. README, `.env.example`, the emptied-owner flag | 16:07–16:45 |
+| 7. Review fixes ([§43–§48](DECISIONS.md#43-review-fixes-batch-1-quotes-owners-dates-duplicates-glossary)), the scorer and answer key ([§49](DECISIONS.md#49-an-answer-key-per-day-and-a-scorer-that-counts-lead-fixes)), the provider measurement ([§50](DECISIONS.md#50-groq-is-the-main-provider-workers-ai-is-the-second-option-thinking-stays-at-medium)), the switch to Workers AI ([§51](DECISIONS.md#51-workers-ai-answers-when-groq-refuses-or-fails-a-day)) | about 30–45 min, 19 and 21 Nov |
 
 ## Where things are
 

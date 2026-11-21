@@ -1116,8 +1116,30 @@ level, both ways of setting it):
   field is ignored by Workers AI.
 - **One Workers AI reply padded its JSON with 6,481 blank characters**, about 50 seconds of writing,
   1 of 13 calls.
-- **Open, for the next step:** what Groq should do when its free plan refuses a day (§49's 413). The
-  options are to switch to Workers AI for that day, to send a shorter list, or a paid plan.
+- **Open, for the next step:** what Groq should do when its free plan refuses a day (§49's 413).
+  Decided in §51.
+
+## 51. Workers AI answers when Groq refuses or fails a day
+
+- **Chosen:** `llm.call` asks the main provider; if it refuses or fails after its own retries (a 413
+  for a request over 8,000 tokens a minute, a daily limit, an outage, or two replies that do not fit
+  the schema), the same request goes to its second provider (`FALLBACK`, Groq to Workers AI). The
+  command line prints why. The draft records the provider that answered, and the saved reply's meta
+  says `provider` and `fallback_from`. Only the main provider falls back; if the second fails too,
+  the error names both, and nothing is saved (as before, §11).
+  - Why: the lead gets a slower draft instead of none. §49 showed Groq's free plan refusing the
+    held-out day in 2 of 3 runs, and a longer list would be refused every day.
+  - Rejected: sending a shorter list (helps every day, but its effect on accuracy is unmeasured; a
+    candidate for the scorer); a paid plan (a cost decision, not code); asking the lead to rerun with
+    `--provider workers_ai` (the same result after a failed wait).
+- **Scoring sees it:** a scored run counts the days the second provider answered, so a Groq score
+  mixed with Workers AI days says so.
+- **Cost:** no extra calls or tokens on a normal day. On a refused day the Workers AI answer takes
+  its usual 25–70 seconds.
+- **Checked:** against two local fake providers (a 413 then an answer; both failing; the second
+  provider not falling back again) and in a draft's saved reply. **Not seen live:** the held-out
+  request sent after it was built was answered by Groq (8,059 tokens, 10.8 seconds); Groq's refusal
+  depends on its own estimate, which varied between runs.
 
 ## Out of scope (time box)
 
