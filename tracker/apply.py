@@ -241,6 +241,39 @@ def review(reply: Reply, base: list[Item], t: Transcript) -> list[Proposed]:
     return out
 
 
+def rebase(reply: Reply, old: list[Proposed], base: list[Item], t: Transcript) -> list[Proposed]:
+    """The model's changes checked again against a new starting list, keeping the lead's work: their
+    edits and ticks on the model's changes, and the changes they added. review() gives one change per
+    model change, in order, so the old and new versions line up."""
+    fresh = review(reply, base, t)
+    ids = {i.id for i in base}
+    for new, was in zip(fresh, [p for p in old if not p.by_lead]):
+        if was.original is None:
+            continue
+        new.original = new.model_copy(deep=True)
+        for f in Change.model_fields:
+            if getattr(was.change, f) != getattr(was.original.change, f):
+                setattr(new.change, f, getattr(was.change, f))
+        if (was.change.due_phrase, was.change.clear_due) != (was.original.change.due_phrase, was.original.change.clear_due):
+            new.due_date = was.due_date
+        if was.selected != was.original.selected:
+            new.selected = was.selected
+        if new.change.review_of not in (None, *ids):
+            new.change.review_of = None
+    out, new_id = fresh, next_id([*base, *(Item(id=p.item_id, title="", created_on=t.day) for p in fresh
+                                          if p.change.action == "create")])
+    for p in (p.model_copy(deep=True) for p in old if p.by_lead):
+        if p.change.action == "create":
+            p.item_id, new_id = f"T{new_id}", new_id + 1
+        elif p.item_id not in ids:
+            p.flags.append(f"{p.item_id} is no longer on the list this day starts from, so this change cannot apply.")
+            p.selected = p.applicable = False
+        if p.change.review_of and p.change.review_of not in ids:
+            p.change.review_of = None
+        out.append(p)
+    return out
+
+
 def _by_or_about(quote: str, t: Transcript, people: list[str]) -> set[str]:
     """People who said the quote, plus people it names."""
     return {t.turns[n][0] for n in checks.turns_with(quote, t.turns)} | checks.names_in(quote, people)

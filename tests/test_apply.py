@@ -3,7 +3,8 @@ from datetime import date
 import pytest
 
 from conftest import THU, change, item, reply, transcript
-from tracker.apply import apply, edited, review
+from tracker.apply import apply, edited, rebase, review
+from tracker.models import Proposed
 
 LINES = [
     "Dev: Hey. Okay, so, bad news, 231 is back. Different cause this time, it's the session cookie, not the refresh.",
@@ -529,3 +530,20 @@ def test_other_teams_date_flagged(tmp_path, owners):
     assert has(infra, "outside the team") and infra.selected
     own = one(change(item_id="T4", due_phrase="tomorrow", quotes=["The deploy should be done tomorrow."]), tt, items)
     assert not has(own, "outside the team")
+
+
+# Review fix 22: a draft checked again against a new starting list keeps the lead's work.
+def test_rebase_keeps_lead_work(t):
+    r = reply(change("create", title="Session cookie fix", owners=["Dev"], quotes=[BACK]))
+    old = review(r, base(), t)
+    old[0].original = old[0].model_copy(deep=True)
+    old[0].change.owners = ["Dev", "Sana"]
+    old.append(Proposed(change=change("create", title="Flaky CI follow-up"), item_id="T8", by_lead=True))
+    old.append(Proposed(change=change(item_id="T6", status="dropped"), item_id="T6", by_lead=True))
+    # The day before was approved again with a new T7 and without T6.
+    new_base = [i for i in base() if i.id != "T6"] + [item("T7", "Session cookie fix", owners=["Dev"])]
+    model, lead_add, lead_drop = rebase(r, old, new_base, t)
+    assert (model.item_id, model.change.owners, edited(model)) == ("T8", ["Dev", "Sana"], ["owners"])
+    assert has(model, "possible duplicate of t7")
+    assert (lead_add.item_id, lead_add.by_lead) == ("T9", True)
+    assert not lead_drop.applicable and has(lead_drop, "no longer on the list")

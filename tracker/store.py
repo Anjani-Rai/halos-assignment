@@ -5,8 +5,9 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from .apply import apply
-from .models import Item, Proposed
+from .apply import apply, rebase
+from .models import Item, Proposed, Reply
+from .transcript import TranscriptError, load
 
 
 class Draft(BaseModel):
@@ -16,6 +17,8 @@ class Draft(BaseModel):
     base_day: date | None
     base: list[Item]  # the approved list this draft starts from
     proposed: list[Proposed]
+    reply: Reply | None = None  # the model's reply, so the draft can be checked again on a new base
+    rechecked: bool = False  # checked again after the day before was approved again
 
 
 class Approved(BaseModel):
@@ -105,4 +108,26 @@ class Store:
         proposed = proposed if proposed is not None else d.proposed
         a = Approved(day=day, items=apply(base, proposed, day), proposed=proposed)
         _write(self._path(day, "approved"), a)
+        self._recheck_after(day)
         return a
+
+    def next_draft(self, day: date) -> Draft | None:
+        """The draft of the first transcript day after `day`, if there is one. Days run in order, so
+        only that day can have a draft while `day` can still change."""
+        later = [d for d in self.transcript_days() if d > day]
+        return self.draft(later[0]) if later else None
+
+    def _recheck_after(self, day: date) -> None:
+        """Approving a day again moves the next day's starting list. Its draft is checked again against
+        the new list from the saved model reply, keeping the lead's edits; no model is called. A draft
+        saved without its reply stays as it is, and its page asks for a new draft."""
+        d = self.next_draft(day)
+        if d is None or d.reply is None or (d.base_day, d.base) == self.base_for(d.day):
+            return
+        try:
+            t = load(self.transcripts / f"{d.day}.txt")
+        except (OSError, TranscriptError):
+            return
+        d.base_day, d.base = self.base_for(d.day)
+        d.proposed, d.rechecked = rebase(d.reply, d.proposed, d.base, t), True
+        _write(self._path(d.day, "draft"), d)

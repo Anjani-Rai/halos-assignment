@@ -26,11 +26,11 @@ def chain(tmp_path):
     return Store("c", root=tmp_path / "data", transcripts=tr), tr
 
 
-def draft(s: Store, tr: Path, day, *changes) -> Draft:
+def draft(s: Store, tr: Path, day, *changes, keep_reply=False) -> Draft:
     base_day, items = s.base_for(day)
     t = load(tr / f"{day.isoformat()}.txt")
     return Draft(day=day, provider="test", model="test", base_day=base_day, base=items,
-                 proposed=review(reply(*changes), items, t))
+                 proposed=review(reply(*changes), items, t), reply=reply(*changes) if keep_reply else None)
 
 
 def monday(s, tr, note=None):
@@ -77,7 +77,8 @@ def test_approved_day_frozen(chain):
 
 
 def test_stale_draft_refused(chain):
-    """§17, §34: approving a draft whose starting list was approved again since is refused."""
+    """§17, §34: approving a draft whose starting list was approved again since is refused when the draft
+    has no saved model reply to check again (drafts made before review fix 22)."""
     s, tr = chain
     monday(s, tr)
     s.save_draft(tuesday_note(s, tr, "x"))
@@ -133,3 +134,20 @@ def test_seed_never_replaces_an_approved_day(chain):
     s2.approve(TUE)
     with pytest.raises(StoreError):
         s2.seed(MON, s.approved(MON).items)
+
+
+def test_approving_again_rechecks_next_draft(chain):
+    """Review fix 22: approving Monday again checks Tuesday's draft against Monday's new list, from its
+    saved reply and without a model call. The lead's edit on Tuesday is kept and Tuesday can be approved."""
+    s, tr = chain
+    monday(s, tr)
+    tue = tuesday_note(s, tr, "x")
+    tue.reply = reply(change(item_id=tue.base[0].id, note="x", quotes=[FINE]))
+    tue.proposed[0].original = tue.proposed[0].model_copy(deep=True)
+    tue.proposed[0].change.note = "edited by the lead"
+    s.save_draft(tue)
+    new_monday = monday(s, tr, note="changed")
+    again = s.draft(TUE)
+    assert (again.base, again.rechecked) == (new_monday.items, True)
+    assert again.proposed[0].change.note == "edited by the lead"
+    assert [n.text for n in s.approve(TUE).items[0].notes] == ["changed", "edited by the lead"]

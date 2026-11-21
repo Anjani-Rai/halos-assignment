@@ -20,7 +20,7 @@ import openai
 
 from . import llm, prompt
 from .apply import apply, fmt_due, review
-from .models import CLOSED, Item, Reply
+from .models import CLOSED, Event, Item, Reply
 from .store import Draft, Store
 from .transcript import load
 
@@ -38,8 +38,9 @@ def draft_day(path: Path, provider: str, store: Store) -> Draft:
     for out in [store.dir / f"{t.day}.reply.json", *([REPLIES / store.dir.name / f"{t.day}.json"] if REPLIES else [])]:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps({"meta": meta, "reply": json.loads(r.raw)}, indent=1) + "\n")
+    reply = Reply.model_validate_json(r.raw)
     d = Draft(day=t.day, provider=provider, model=r.model, base_day=base_day, base=base,
-              proposed=review(Reply.model_validate_json(r.raw), base, t))
+              proposed=review(reply, base, t), reply=reply)
     store.save_draft(d)
     print(f"\n== {t.day:%a %d %b} · {r.model} · {r.seconds}s · {len(d.proposed)} changes")
     return d
@@ -85,13 +86,21 @@ def open_tree(items: list[Item]) -> list[tuple[Item, bool]]:
     return rows
 
 
+def last_said(i: Item) -> Event | None:
+    """The latest day the meeting's words were recorded for this item."""
+    return next((e for e in reversed(i.history) if e.quotes), None)
+
+
 def show_list(items) -> None:
-    """Open items, each followed by its open reviews."""
+    """Open items, each followed by its open reviews, with the latest words said about it."""
     open_ids = {i.id for i in items if i.status not in CLOSED}
     for i, under in open_tree(items):
-        print(f"{'     ↳ ' if under else '   '}{i.id} {i.title} · {', '.join(i.owners) or 'no owner'} · {i.status}"
+        pad = "     ↳ " if under else "   "
+        print(f"{pad}{i.id} {i.title} · {', '.join(i.owners) or 'no owner'} · {i.status}"
               f"{' (tentative)' if i.tentative else ''} · due {fmt_due(i.due_phrase, i.due_date)}"
               + (f" · review of {i.review_of} (closed)" if i.review_of and i.review_of not in open_ids else ""))
+        if e := last_said(i):
+            print(f"{' ' * len(pad)}  “{' … '.join(e.quotes)}” ({e.on:%a %d %b})")
 
 
 def main() -> None:
