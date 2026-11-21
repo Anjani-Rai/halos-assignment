@@ -1,6 +1,6 @@
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from openai import APIError, OpenAI
 from pydantic import ValidationError
@@ -39,6 +39,11 @@ class Result:
     model: str
     seconds: float
     attempts: int
+    usage: dict = field(default_factory=dict)  # the provider's token counts: prompt_tokens, completion_tokens, and reasoning_tokens where given
+
+    def meta(self) -> dict:
+        """What is saved next to each reply: which model, how long, how many tries, how many tokens."""
+        return {"model": self.model, "seconds": self.seconds, "attempts": self.attempts, "usage": self.usage}
 
 
 def _schema() -> dict:
@@ -74,7 +79,8 @@ def call(name: str, system: str, user: str) -> Result:
         raw = choice.message.content or ""
         try:
             reply = Reply.model_validate_json(raw)
-            return Result(reply, raw, name, p.model, round(time.monotonic() - start, 1), attempt)
+            usage = resp.usage.model_dump(exclude_none=True) if resp.usage else {}
+            return Result(reply, raw, name, p.model, round(time.monotonic() - start, 1), attempt, usage)
         except ValidationError as e:
             problem = f"finish_reason={choice.finish_reason}; {e.error_count()} errors: {str(e)[:300]}"
     raise LLMError(f"{name} returned no valid reply after 2 tries ({problem})")

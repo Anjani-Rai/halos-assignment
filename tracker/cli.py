@@ -34,7 +34,7 @@ def draft_day(path: Path, provider: str, store: Store) -> Draft:
     base_day, base = store.base_for(t.day)
     print(f"\n.. {t.day:%a %d %b}: asking {provider}")
     r = llm.call(provider, prompt.SYSTEM, prompt.user_message(t, base))
-    meta = {"model": r.model, "seconds": r.seconds, "attempts": r.attempts}
+    meta = r.meta()
     for out in [store.dir / f"{t.day}.reply.json", *([REPLIES / store.dir.name / f"{t.day}.json"] if REPLIES else [])]:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps({"meta": meta, "reply": json.loads(r.raw)}, indent=1) + "\n")
